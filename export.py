@@ -4,4 +4,4 @@ from ultralytics import YOLO
 model = YOLO("/home/jaeho/ent_cv/runs/detect/train12/weights/best.pt")  # load a custom trained model
 
 # Export the model
-model.export(format="onnx")
+model.export(format="onnx", dynamic=True)
