@@ -1,7 +1,5 @@
 from ultralytics import YOLO
 
-# Load a model
-model = YOLO("/home/jaeho/ent_cv/runs/detect/train12/weights/best.pt")  # load a custom trained model
+model = YOLO("/home/jaeho/ent_cv/runs/detect/train12/weights/best.pt")
 
-# Export the model
-model.export(format="onnx", dynamic=True)
+model.export(format="onnx", imgsz=640, opset=17, dynamic=False, simplify=True, nms=True)
