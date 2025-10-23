@@ -1,13 +1,24 @@
 from ultralytics import YOLO
+import time
 
-# Load a pretrained YOLO11n model
 model = YOLO("/home/jaeho/ent_cv/runs/detect/train/weights/best.pt")
 mapping = {0: "Bovie", 1: "Frazier", 2: "Forceps", 3: "Microdebrider", 4: "Freer"}
-assert len(mapping) == model.model.nc, "names count must match number of classes"
+assert len(mapping) == model.model.nc
 model.model.names = mapping
 
-# Define path to file
-source = "/home/jaeho/footage/frame-*.png"
+source = "./data/20250911_01.mp4"
 
-# Run inference on the source
-results = model(source, save=True, save_txt=True, save_conf=True, conf=0.8)
+results = model.predict(
+    source=source,
+    stream=True,
+    save=False,           
+    save_txt=True,
+    save_conf=True,
+    conf=0.7,
+    verbose=True,
+)
+
+for i, r in enumerate(results):
+    for b in r.boxes:
+        cls = int(b.cls[0])
+        conf = float(b.conf[0])
