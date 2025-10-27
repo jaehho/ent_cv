@@ -1,62 +1,99 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import colors as mcolors
+from matplotlib.lines import Line2D
 from pathlib import Path
 
-video_csv = Path("timestamps/20250911_01_5min.csv")
-# names = {0: "Bovie", 1: "Frazier", 2: "Forceps", 3: "Microdebrider", 4: "Freer"}
-names = None  # set dict above if you want a legend with names
+# inputs
+video_csv = Path("timestamps/20251016_02.csv")
+names = {0: "Bovie", 1: "Frazier", 2: "Forceps", 3: "Microdebrider", 4: "Freer"}
 
+# load
 df = pd.read_csv(video_csv)
-assert {"frame", "class", "timestamp_sec"}.issubset(df.columns)
+assert {"frame", "timestamp_hhmmss", "class"}.issubset(df.columns)
 
-# preserve original order => “last detected” wins
+# keep last detection per (frame, class), then last per frame
 df["ord"] = np.arange(len(df))
 df = df.drop_duplicates(subset=["frame", "class"], keep="last")
-df_one = df.sort_values(["frame", "ord"]).groupby("frame", as_index=False).tail(1).sort_values("frame")
+df_one = (
+    df.sort_values(["frame", "ord"])
+      .groupby("frame", as_index=False)
+      .tail(1)
+      .sort_values("frame")
+)
 
-# colors by class (let matplotlib assign)
-classes = np.sort(df_one["class"].astype(int).unique())
-cls_to_code = {c:i for i, c in enumerate(classes)}
+# class coding
+classes = df_one["class"].astype(int).unique()
+classes.sort()
+cls_to_code = {c: i for i, c in enumerate(classes)}
 cvals = df_one["class"].astype(int).map(cls_to_code).to_numpy()
 
-# plotting
-fig, ax = plt.subplots(figsize=(12, 2.2))
-ax.scatter(df_one["frame"].to_numpy(), np.zeros(len(df_one)), c=cvals, s=12)
+# build 1×N pixel strip across full frame span
+fmin, fmax = int(df_one["frame"].min()), int(df_one["frame"].max())
+n = fmax - fmin + 1
+strip = np.full(n, np.nan)
+idx = (df_one["frame"].astype(int) - fmin).to_numpy()
+strip[idx] = cvals  # class codes at detected frames
+
+# figure
+fig, ax = plt.subplots(figsize=(12, 1))
+
+# colormap and normalization
+cmap = plt.get_cmap("viridis").copy()
+cmap.set_bad(color="none", alpha=0.0)  # show gaps as transparent
+norm = mcolors.Normalize(vmin=min(cls_to_code.values()), vmax=max(cls_to_code.values()))
+
+# each frame renders as one pixel
+ax.imshow(
+    strip[np.newaxis, :],
+    aspect="auto",
+    interpolation="nearest",
+    cmap=cmap,
+    norm=norm,
+    extent=[fmin - 0.5, fmax + 0.5, -0.5, 0.5],
+)
+
+# axes styling
 ax.get_yaxis().set_visible(False)
-ax.set_xlabel("Time (HH:MM:SS.SS)")
-ax.set_title("Detections timeline")
+ax.set_ylim(-0.5, 0.5)
+ax.set_xlabel("Video Time (HH:MM)")
+ax.set_title(f"{video_csv.stem} Timeline")
+# ax.set_title("Detection Timeline (1D)")
 
-# build ticks in frame space, label by formatted video time
-frames = df_one["frame"].to_numpy()
-secs = df_one["timestamp_sec"].to_numpy()
-fmin, fmax = int(frames.min()), int(frames.max())
-nticks = min(12, fmax - fmin + 1)
-tick_pos = np.linspace(fmin, fmax, nticks, dtype=int)
+# compute ticks
+t = pd.to_datetime(df_one["timestamp_hhmmss"], format="%H:%M:%S.%f", errors="coerce")
+if t.notna().any():
+    start, end = t.iloc[0], t.iloc[-1]
+    tick_times = pd.date_range(start, end, freq="15min")
+    # find nearest frame for each tick
+    tick_frames = [
+        df_one.loc[(t - tt).abs().idxmin(), "frame"] for tt in tick_times
+    ]
+    ax.set_xticks(tick_frames)
+    ax.set_xticklabels(
+        [tt.strftime("%H:%M") for tt in tick_times],
+        rotation=45,
+        ha="right"
+    )
 
-# interpolate seconds for any frames without a direct row
-sec_at = np.interp(tick_pos, frames, secs)
-
-def fmt_hhmmss_ss(x):
-    h = int(x // 3600)
-    m = int((x % 3600) // 60)
-    s = x % 60
-    return f"{h:02d}:{m:02d}:{s:06.2f}"
-
-tick_lbl = [fmt_hhmmss_ss(x) for x in sec_at]
-ax.set_xticks(tick_pos)
-ax.set_xticklabels(tick_lbl, rotation=45, ha="right")
-
-# optional legend
-if names:
+# legend via proxy handles
+if names is not False:
     handles, labels = [], []
     for cls in classes:
-        if not (df_one["class"].astype(int) == cls).any():
-            continue
-        h = ax.scatter([], [], c=[cls_to_code[cls]], s=30)
-        handles.append(h)
-        labels.append(names.get(int(cls), str(int(cls))))
-    ax.legend(handles, labels, title="Class", loc="upper right", frameon=False)
+        color = cmap(norm(cls_to_code[cls]))
+        handles.append(
+            Line2D([0], [0], marker="s", linestyle="", markersize=6,
+                   markerfacecolor=color, markeredgecolor="none")
+        )
+        label = names.get(int(cls), str(int(cls))) if isinstance(names, dict) else str(int(cls))
+        labels.append(label)
+    ax.legend(
+        handles, labels, title="Class",
+        loc="center left", bbox_to_anchor=(1.02, 0.5),
+        frameon=True, framealpha=1, edgecolor="black"
+    )
 
-plt.tight_layout()
-plt.savefig(video_csv.with_suffix(".png"), dpi=150)
+out_path = video_csv.parent / f"{video_csv.stem}_timeline.png"
+plt.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.2, facecolor="white")
+print(f"saved: {out_path}")
