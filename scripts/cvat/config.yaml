@@ -1,0 +1,19 @@
+project_name: "ENT_CV"
+# project_description: ""
+
+data_root: "data"
+target_subdir: "raw"
+
+# https://cvat.jaehho.com/api/docs/#tag/tasks/operation/tasks_create_data
+# task_prefix: ""
+image_quality: 70
+frame_step: 300
+
+use_zip_chunks: false
+use_cache: false
+copy_data: true
+sorting_method: "natural"
+
+# Auto Annotation
+model_name: "onnx-jaehho-entcv"
+task_ids: [101, 102, 103, 105]

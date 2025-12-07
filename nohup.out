@@ -1,0 +1,108 @@
+bash scripts/scrape/run_downloads.sh
+[*] Starting aria2c downloads into /home/jaeho/ent_cv/data/raw/20251124_01...
+
+12/05 12:51:44 [[1;32mNOTICE[0m] Downloading 8 item(s)
+
+12/05 12:51:44 [[1;32mNOTICE[0m] CUID#7 - Redirecting to https://mtsinai-my.sharepoint.com/personal/turner_baker_mssm_edu/Documents/Pharyvac-Related%20OR%20Exposure%20Case%20Videos/OR%20GoPro%20Videos/OR%20Videos%20for%20Jae/20251124_01/20251124_01_Part1.mp4?csf=1&download=1&CID=84977563-99f0-4391-a848-6f60fdb6b30b
+
+12/05 12:51:44 [[1;32mNOTICE[0m] CUID#8 - Redirecting to https://mtsinai-my.sharepoint.com/personal/turner_baker_mssm_edu/Documents/Pharyvac-Related%20OR%20Exposure%20Case%20Videos/OR%20GoPro%20Videos/OR%20Videos%20for%20Jae/20251124_01/20251124_01_Part2.mp4?csf=1&download=1&CID=7a620081-46e2-449e-ab19-d5b045981f4d
+
+12/05 12:51:44 [[1;32mNOTICE[0m] GID#a1f502445225c0f8 - Download has already completed: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part1.mp4
+
+12/05 12:51:44 [[1;32mNOTICE[0m] Download complete: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part1.mp4
+
+12/05 12:51:44 [[1;32mNOTICE[0m] CUID#9 - Redirecting to https://mtsinai-my.sharepoint.com/personal/turner_baker_mssm_edu/Documents/Pharyvac-Related%20OR%20Exposure%20Case%20Videos/OR%20GoPro%20Videos/OR%20Videos%20for%20Jae/20251124_01/20251124_01_Part3.mp4?csf=1&download=1&CID=3d14004f-0557-4cb5-91c3-bf4bd9481373
+
+12/05 12:51:44 [[1;32mNOTICE[0m] GID#1c3097eeb4a5308d - Download has already completed: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part2.mp4
+
+12/05 12:51:44 [[1;32mNOTICE[0m] Download complete: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part2.mp4
+
+12/05 12:51:44 [[1;32mNOTICE[0m] CUID#10 - Redirecting to https://mtsinai-my.sharepoint.com/personal/turner_baker_mssm_edu/Documents/Pharyvac-Related%20OR%20Exposure%20Case%20Videos/OR%20GoPro%20Videos/OR%20Videos%20for%20Jae/20251124_01/20251124_01_Part4.mp4?csf=1&download=1&CID=5a671051-9dd9-419c-beee-ba273224b22e
+
+12/05 12:51:45 [[1;32mNOTICE[0m] GID#6bf2dad81f99aa58 - Download has already completed: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part3.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] Download complete: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part3.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] GID#faca0c885b0457ca - Download has already completed: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part4.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] Download complete: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part4.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] CUID#11 - Redirecting to https://mtsinai-my.sharepoint.com/personal/turner_baker_mssm_edu/Documents/Pharyvac-Related%20OR%20Exposure%20Case%20Videos/OR%20GoPro%20Videos/OR%20Videos%20for%20Jae/20251124_01/20251124_01_Part1.mp4?csf=1&download=1&CID=ed025666-eb31-4df9-9434-2bbef4cfe604
+
+12/05 12:51:45 [[1;32mNOTICE[0m] CUID#12 - Redirecting to https://mtsinai-my.sharepoint.com/personal/turner_baker_mssm_edu/Documents/Pharyvac-Related%20OR%20Exposure%20Case%20Videos/OR%20GoPro%20Videos/OR%20Videos%20for%20Jae/20251124_01/20251124_01_Part2.mp4?csf=1&download=1&CID=a4d38d04-67bf-413d-b33a-f06dd36467b7
+
+12/05 12:51:45 [[1;32mNOTICE[0m] GID#c3809df6a68e3e0c - Download has already completed: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part1.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] Download complete: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part1.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] GID#05373127ef56aa95 - Download has already completed: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part2.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] Download complete: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part2.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] CUID#13 - Redirecting to https://mtsinai-my.sharepoint.com/personal/turner_baker_mssm_edu/Documents/Pharyvac-Related%20OR%20Exposure%20Case%20Videos/OR%20GoPro%20Videos/OR%20Videos%20for%20Jae/20251124_01/20251124_01_Part3.mp4?csf=1&download=1&CID=79ff9905-f40b-4b51-9f51-b843e4a9be3b
+
+12/05 12:51:45 [[1;32mNOTICE[0m] CUID#14 - Redirecting to https://mtsinai-my.sharepoint.com/personal/turner_baker_mssm_edu/Documents/Pharyvac-Related%20OR%20Exposure%20Case%20Videos/OR%20Endoscope%20Videos/20251124_01/Ch1_001_CH001_V.MP4?csf=1&download=1&CID=f210041b-4915-4abb-94c5-7bf16c2a1bb8
+[DL:0B][#172b73 0B/0B][#87a16e 0B/0B]
+
+12/05 12:51:45 [[1;32mNOTICE[0m] GID#172b73050b1f6ff2 - Download has already completed: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part3.mp4
+
+12/05 12:51:45 [[1;32mNOTICE[0m] Download complete: /home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part3.mp4
+[#87a16e 48MiB/1.7GiB(2%) CN:1 DL:48MiB ETA:35s]
+[#87a16e 113MiB/1.7GiB(6%) CN:1 DL:57MiB ETA:29s]
+[#87a16e 159MiB/1.7GiB(8%) CN:1 DL:53MiB ETA:30s]
+[#87a16e 220MiB/1.7GiB(12%) CN:1 DL:55MiB ETA:28s]
+[#87a16e 270MiB/1.7GiB(15%) CN:1 DL:54MiB ETA:27s]
+[#87a16e 333MiB/1.7GiB(18%) CN:1 DL:56MiB ETA:25s]
+[#87a16e 368MiB/1.7GiB(20%) CN:1 DL:53MiB ETA:26s]
+[#87a16e 408MiB/1.7GiB(22%) CN:1 DL:50MiB ETA:27s]
+[#87a16e 442MiB/1.7GiB(24%) CN:1 DL:49MiB ETA:27s]
+[#87a16e 476MiB/1.7GiB(26%) CN:1 DL:47MiB ETA:27s]
+[#87a16e 511MiB/1.7GiB(28%) CN:1 DL:46MiB ETA:27s]
+[#87a16e 549MiB/1.7GiB(30%) CN:1 DL:43MiB ETA:28s]
+[#87a16e 596MiB/1.7GiB(33%) CN:1 DL:43MiB ETA:27s]
+[#87a16e 647MiB/1.7GiB(36%) CN:1 DL:42MiB ETA:27s]
+[#87a16e 696MiB/1.7GiB(38%) CN:1 DL:39MiB ETA:27s]
+[#87a16e 759MiB/1.7GiB(42%) CN:1 DL:42MiB ETA:24s]
+[#87a16e 809MiB/1.7GiB(45%) CN:1 DL:43MiB ETA:22s]
+[#87a16e 857MiB/1.7GiB(47%) CN:1 DL:44MiB ETA:21s]
+[#87a16e 885MiB/1.7GiB(49%) CN:1 DL:43MiB ETA:20s]
+[#87a16e 0.9GiB/1.7GiB(51%) CN:1 DL:44MiB ETA:19s]
+[#87a16e 0.9GiB/1.7GiB(53%) CN:1 DL:44MiB ETA:18s]
+[#87a16e 0.9GiB/1.7GiB(56%) CN:1 DL:45MiB ETA:17s]
+[#87a16e 1.0GiB/1.7GiB(59%) CN:1 DL:46MiB ETA:15s]
+[#87a16e 1.0GiB/1.7GiB(61%) CN:1 DL:46MiB ETA:14s]
+[#87a16e 1.1GiB/1.7GiB(64%) CN:1 DL:45MiB ETA:14s]
+[#87a16e 1.1GiB/1.7GiB(67%) CN:1 DL:44MiB ETA:13s]
+[#87a16e 1.2GiB/1.7GiB(69%) CN:1 DL:44MiB ETA:12s]
+[#87a16e 1.2GiB/1.7GiB(72%) CN:1 DL:44MiB ETA:11s]
+[#87a16e 1.3GiB/1.7GiB(74%) CN:1 DL:45MiB ETA:10s]
+[#87a16e 1.3GiB/1.7GiB(76%) CN:1 DL:45MiB ETA:9s]
+[#87a16e 1.3GiB/1.7GiB(78%) CN:1 DL:44MiB ETA:8s]
+[#87a16e 1.4GiB/1.7GiB(80%) CN:1 DL:44MiB ETA:7s]
+[#87a16e 1.4GiB/1.7GiB(83%) CN:1 DL:42MiB ETA:7s]
+[#87a16e 1.5GiB/1.7GiB(85%) CN:1 DL:42MiB ETA:6s]
+[#87a16e 1.5GiB/1.7GiB(87%) CN:1 DL:42MiB ETA:5s]
+[#87a16e 1.5GiB/1.7GiB(89%) CN:1 DL:38MiB ETA:5s]
+[#87a16e 1.5GiB/1.7GiB(90%) CN:1 DL:36MiB ETA:4s]
+[#87a16e 1.6GiB/1.7GiB(92%) CN:1 DL:35MiB ETA:3s]
+[#87a16e 1.6GiB/1.7GiB(94%) CN:1 DL:37MiB ETA:2s]
+[#87a16e 1.7GiB/1.7GiB(97%) CN:1 DL:37MiB ETA:1s]
+[#87a16e 1.7GiB/1.7GiB(99%) CN:1 DL:37MiB]
+
+12/05 12:52:26 [[1;32mNOTICE[0m] Download complete: /home/jaeho/ent_cv/data/raw/20251124_01/Ch1_001_CH001_V.MP4
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+a1f502|OK  |       0B/s|/home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part1.mp4
+1c3097|OK  |       0B/s|/home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part2.mp4
+6bf2da|OK  |       0B/s|/home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part3.mp4
+faca0c|OK  |       0B/s|/home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part4.mp4
+c3809d|OK  |       0B/s|/home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part1.mp4
+053731|OK  |       0B/s|/home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part2.mp4
+172b73|OK  |       0B/s|/home/jaeho/ent_cv/data/raw/20251124_01/20251124_01_Part3.mp4
+87a16e|OK  |    43MiB/s|/home/jaeho/ent_cv/data/raw/20251124_01/Ch1_001_CH001_V.MP4
+
+Status Legend:
+(OK):download completed.
+[*] Downloads finished. Files saved in: /home/jaeho/ent_cv/data/raw/20251124_01

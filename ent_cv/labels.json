@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Suction Bovie",
+    "type": "rectangle",
+    "attributes": []
+  },
+  {
+    "name": "Frazier Suction",
+    "type": "rectangle",
+    "attributes": []
+  },
+  {
+    "name": "Forceps",
+    "type": "rectangle",
+    "attributes": []
+  },
+  {
+    "name": "Microdebrider",
+    "type": "rectangle",
+    "attributes": []
+  },
+  {
+    "name": "Freer",
+    "type": "rectangle",
+    "attributes": []
+  }
+]
