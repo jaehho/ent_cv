@@ -41,11 +41,14 @@ def main() -> None:
     name = cfg.get("project_name") or f"project_{now}"
     description = cfg.get("project_description") or f"created_{now}"
 
-    label_file = cfg.get("labels")
+    label_file = cfg.get("label_file")
     labels = load_labels(Path(label_file) if label_file else None)
 
     try:
         with make_client(HOST, credentials=(USERNAME, PASSWORD)) as client:
+            print("Loaded labels:", json.dumps(labels, indent=2))
+            print("Number of labels:", len(labels))
+
             project = client.projects.create(
                 {
                     "name": name,
