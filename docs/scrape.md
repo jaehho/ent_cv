@@ -13,6 +13,7 @@ videos from a secure OneDrive into `data/raw/`.
 
 - `scripts/scrape/cookies.txt`  
   Netscape-style cookie file (not committed). Must contain `FedAuth`, `rtFa`, etc.
+  use `Get cookies.txt` browser extension to export cookies.
 
 ## Usage
 
