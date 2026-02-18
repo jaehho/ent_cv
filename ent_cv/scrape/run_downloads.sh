@@ -1,35 +1,42 @@
 #!/bin/bash
 # scripts/onedrive/run_downloads.sh
-#
-# Pipeline:
-#   1. Generate urls.txt from the Part10 OneDrive link (generate_urls.py)
-#   2. Use aria2c + cookies.txt to download all parts into data/raw/...
 
 set -euo pipefail
 
-# Resolve project root (directory containing this script, then go up two levels if needed)
+# Resolve project root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
-
-# Where to put raw videos inside CCDS structure
-OUTPUT_DIR="$PROJECT_ROOT/data/raw/20251124_01"
+RAW_DATA_ROOT="$PROJECT_ROOT/data/raw"
 
 cd "$SCRIPT_DIR"
 
-# echo "[*] Generating URLs..."
-# python3 generate_urls.py
+if [ ! -f "urls.txt" ]; then
+    echo "Error: urls.txt not found."
+    exit 1
+fi
 
-echo "[*] Starting aria2c downloads into $OUTPUT_DIR..."
-mkdir -p "$OUTPUT_DIR"
+# 1. Extract unique case IDs (e.g., 20251113_02, 20251124_01) from the URLs
+# This looks for the pattern YYYYMMDD_NN in the URL path
+CASE_IDS=$(grep -oE '[0-9]{8}_[0-9]{2}' urls.txt | sort -u)
 
-aria2c -i urls.txt \
-  --load-cookies=cookies.txt \
-  --save-cookies=cookies.txt \
-  --continue=true \
-  --max-concurrent-downloads=2 \
-  --split=8 \
-  --min-split-size=64M \
-  --file-allocation=none \
-  -d "$OUTPUT_DIR"
+echo "[*] Found $(echo "$CASE_IDS" | wc -l) unique cases. starting partitioned download..."
 
-echo "[*] Downloads finished. Files saved in: $OUTPUT_DIR"
+for CASE in $CASE_IDS; do
+    OUTPUT_DIR="$RAW_DATA_ROOT/$CASE"
+    echo "--- Processing Case: $CASE ---"
+    echo "[*] Destination: $OUTPUT_DIR"
+    mkdir -p "$OUTPUT_DIR"
+
+    # 2. Filter urls.txt for only the current case and pipe to aria2c
+    grep "$CASE" urls.txt | aria2c -i - \
+        --load-cookies=cookies.txt \
+        --save-cookies=cookies.txt \
+        --continue=true \
+        --max-concurrent-downloads=2 \
+        --split=8 \
+        --min-split-size=64M \
+        --file-allocation=none \
+        -d "$OUTPUT_DIR"
+done
+
+echo "[*] All case downloads finished."
