@@ -32,12 +32,13 @@ def extract_frames(
     blur_threshold: float = typer.Option(10.0, help="Minimum sharpness score"),
     min_brightness: float = typer.Option(40.0, help="Darkness cutoff"),
     max_brightness: float = typer.Option(210.0, help="Brightness cutoff"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Log metrics for every sampled frame"),
 ):
     if not input_video.exists():
         logger.error(f"File not found: {input_video}")
         raise typer.Exit(code=1)
 
-    # Create a subfolder based on the video name to avoid filename collisions
+    # Create a subfolder based on the video name
     video_stem = input_video.stem
     save_path = output_dir / video_stem
     save_path.mkdir(parents=True, exist_ok=True)
@@ -58,19 +59,33 @@ def extract_frames(
             if not ret:
                 break
 
-            # 1. Quality Filters
+            # 1. Calculate Metrics
             sharpness = get_sharpness(frame)
-            if sharpness < blur_threshold:
-                logger.debug(f"Frame {current_frame_idx} rejected: Sharpness {sharpness:.2f}")
-            else:
-                brightness = get_brightness(frame)
-                if not (min_brightness <= brightness <= max_brightness):
+            brightness = get_brightness(frame)
+
+            # 2. Verbose Logging
+            if verbose:
+                logger.info(
+                    f"Frame {current_frame_idx} stats -> "
+                    f"Sharpness: {sharpness:.2f} (min: {blur_threshold}), "
+                    f"Brightness: {brightness:.2f} (range: {min_brightness}-{max_brightness})"
+                )
+
+            # 3. Quality Filters
+            is_sharp = sharpness >= blur_threshold
+            is_bright_enough = min_brightness <= brightness <= max_brightness
+
+            if not is_sharp:
+                if not verbose: # Avoid double logging if verbose is already on
+                    logger.debug(f"Frame {current_frame_idx} rejected: Sharpness {sharpness:.2f}")
+            elif not is_bright_enough:
+                if not verbose:
                     logger.debug(f"Frame {current_frame_idx} rejected: Brightness {brightness:.2f}")
-                else:
-                    # 2. SAVE LOGIC (Similarity check removed)
-                    file_name = f"{video_stem}_f{current_frame_idx:06d}.jpg"
-                    cv2.imwrite(str(save_path / file_name), frame)
-                    saved_count += 1
+            else:
+                # 4. SAVE LOGIC
+                file_name = f"{video_stem}_f{current_frame_idx:06d}.jpg"
+                cv2.imwrite(str(save_path / file_name), frame)
+                saved_count += 1
             
             # Move index forward and update progress bar
             current_frame_idx += frame_interval
