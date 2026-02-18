@@ -15,28 +15,36 @@ if [ ! -f "urls.txt" ]; then
     exit 1
 fi
 
-# 1. Extract unique case IDs (e.g., 20251113_02, 20251124_01) from the URLs
-# This looks for the pattern YYYYMMDD_NN in the URL path
+# 1. Extract unique case IDs
 CASE_IDS=$(grep -oE '[0-9]{8}_[0-9]{2}' urls.txt | sort -u)
+NUM_CASES=$(echo "$CASE_IDS" | wc -l)
 
-echo "[*] Found $(echo "$CASE_IDS" | wc -l) unique cases. starting partitioned download..."
+echo "[*] Found $NUM_CASES unique cases. Starting parallel optimized downloads..."
 
-for CASE in $CASE_IDS; do
-    OUTPUT_DIR="$RAW_DATA_ROOT/$CASE"
-    echo "--- Processing Case: $CASE ---"
-    echo "[*] Destination: $OUTPUT_DIR"
+# 2. Use xargs to process cases in parallel. 
+# -P 4: Processes 4 cases at a time (adjust based on your bandwidth).
+# -I {}: Placeholder for the CASE_ID.
+echo "$CASE_IDS" | xargs -P 4 -I {} bash -c '
+    CASE="{}"
+    OUTPUT_DIR="'"$RAW_DATA_ROOT"'/$CASE"
+    
     mkdir -p "$OUTPUT_DIR"
-
-    # 2. Filter urls.txt for only the current case and pipe to aria2c
+    
+    # Filter URLs for this case and pipe to aria2c
     grep "$CASE" urls.txt | aria2c -i - \
         --load-cookies=cookies.txt \
         --save-cookies=cookies.txt \
         --continue=true \
-        --max-concurrent-downloads=2 \
-        --split=8 \
-        --min-split-size=64M \
-        --file-allocation=none \
+        --max-concurrent-downloads=5 \
+        --max-connection-per-server=16 \
+        --split=16 \
+        --min-split-size=1M \
+        --file-allocation=falloc \
+        --summary-interval=0 \
+        --console-log-level=error \
         -d "$OUTPUT_DIR"
-done
+    
+    echo "[+] Finished Case: $CASE"
+'
 
 echo "[*] All case downloads finished."
