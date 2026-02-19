@@ -1,0 +1,80 @@
+metadata:
+  name: pt-jaehho-single-detector
+  namespace: cvat
+  annotations:
+    name: single_detector
+    type: detector
+    spec: |
+      [
+        { "id": 0, "name": "Forceps", "type": "rectangle" },
+        { "id": 1, "name": "Non-forcep instruments", "type": "rectangle" },
+        { "id": 2, "name": "Suction", "type": "rectangle" },
+        { "id": 3, "name": "Navigation probe", "type": "rectangle" },
+        { "id": 4, "name": "Navigation suction", "type": "rectangle" },
+        { "id": 5, "name": "Energy-based hemostasis", "type": "rectangle" },
+        { "id": 6, "name": "Suction bovie", "type": "rectangle" },
+        { "id": 7, "name": "Microdebrider", "type": "rectangle" },
+        { "id": 8, "name": "Drill", "type": "rectangle" }
+      ]
+
+spec:
+  description: ENT surgical instrument detector - single_detector (yolo26x_20260220_152329). 
+  runtime: 'python:3.10'
+  handler: main:handler
+  eventTimeout: 30s
+
+  build:
+    image: cvat.single-detector:latest
+    baseImage: ubuntu:22.04
+
+    directives:
+      preCopy:
+        - kind: ENV
+          value: DEBIAN_FRONTEND=noninteractive
+        # Comment out for CPU
+        - kind: ENV
+          value: NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=compute,utility
+        - kind: RUN
+          value: |-
+            apt-get update \
+            && apt-get install -y --no-install-recommends \
+              python-is-python3 \
+              python3 \
+              python3-pip \
+              ffmpeg \
+              libsm6 \
+              libxext6 \
+            && rm -rf /var/lib/apt/lists/*
+        - kind: RUN
+          value: pip3 install ultralytics --no-cache-dir
+        - kind: WORKDIR
+          value: /opt/nuclio
+
+  triggers:
+    myHttpTrigger:
+      numWorkers: 1
+      kind: 'http'
+      workerAvailabilityTimeoutMilliseconds: 10000
+      attributes:
+        maxRequestBodySize: 33554432 # 32MB
+
+  # Comment out for CPU
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+
+  platform:
+    attributes:
+      restartPolicy:
+        name: always
+        maximumRetryCount: 3
+      mountMode: volume
+
+  volumes:
+    - volume:
+        name: model-weights
+        hostPath:
+          path: /mnt/data/ent_cv/models/yolo26x_20260220_152329/weights/best.pt
+      volumeMount:
+        name: model-weights
+        mountPath: /opt/nuclio/best.pt

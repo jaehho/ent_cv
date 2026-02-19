@@ -1,0 +1,18 @@
+operation: postprocess
+
+defaults:
+  raw_json: /mnt/data/ent_cv/predictions/20251113_02/detections.json 
+  method: run_length
+  min_duration_sec: 3.0
+  gap_fill_sec: 1.0
+  window_sec: 3.0
+  vote_threshold: 0.5
+
+
+runs:
+  - raw_json: /mnt/data/ent_cv/predictions/20251113_02/detections.json
+  - raw_json: /mnt/data/ent_cv/predictions/20251124_01/detections.json
+  - raw_json: /mnt/data/ent_cv/predictions/20251204_01/detections.json
+  - raw_json: /mnt/data/ent_cv/predictions/20251208_01/detections.json
+  - raw_json: /mnt/data/ent_cv/predictions/20251208_02/detections.json
+  - raw_json: /mnt/data/ent_cv/predictions/20251210_02/detections.json

@@ -1,29 +1,183 @@
+"""Run YOLO inference on a single source."""
+import json
+import shutil
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
-from loguru import logger
-from tqdm import tqdm
 import typer
+import yaml
+from loguru import logger
+from ultralytics import YOLO
 
-from ent_cv.config import MODELS_DIR, PROCESSED_DATA_DIR
+from ent_cv.config import PREDICTIONS_DIR
+from ent_cv.utils import notify
 
-app = typer.Typer()
+app = typer.Typer(add_completion=False)
+
+
+@dataclass
+class PredictConfig:
+    # required
+    source: Path
+    weights: Path
+    conf: float
+    iou: float
+    imgsz: int
+    device: str
+    onnx: bool
+    overwrite: bool
+    save: bool
+    save_conf: bool
+    save_txt: bool
+    save_json: bool
+    save_frames: bool
+    # optional (None = not set)
+    output_dir: Optional[Path] = None
+    suffix: Optional[str] = None
+
+    def __post_init__(self):
+        self.source = Path(self.source)
+        self.weights = Path(self.weights)
+        if self.output_dir is not None:
+            self.output_dir = Path(self.output_dir)
+
+
+def _load_config(config_file: Path) -> PredictConfig:
+    with open(config_file) as f:
+        d = yaml.safe_load(f) or {}
+    known = {k: v for k, v in d.items() if k in PredictConfig.__dataclass_fields__}
+    if unknown := set(d) - set(PredictConfig.__dataclass_fields__):
+        logger.warning(f"Ignoring unknown config keys: {unknown}")
+    return PredictConfig(**known)
+
+
+def run(cfg: PredictConfig) -> Optional[tuple[Path, int]]:
+    """Run YOLO inference. Returns (output_dir, frame_count) or None if skipped."""
+    weights = cfg.weights.parent / "best.onnx" if cfg.onnx else cfg.weights
+    if cfg.onnx:
+        logger.info(f"ONNX mode: using {weights}")
+
+    if not weights.exists():
+        raise FileNotFoundError(f"Weights not found: {weights}")
+    if not cfg.source.exists():
+        raise FileNotFoundError(f"Source not found: {cfg.source}")
+
+    derived_name = cfg.source.stem + (f"_{cfg.suffix}" if cfg.suffix else "")
+    output_dir = cfg.output_dir or (PREDICTIONS_DIR / derived_name)
+
+    if output_dir.exists() and any(output_dir.iterdir()):
+        if cfg.overwrite:
+            shutil.rmtree(output_dir)
+            logger.info(f"Removed existing output: {output_dir}")
+        else:
+            print(f"\nOutput already exists: {output_dir}")
+            print("  [d] Delete and overwrite")
+            print("  [s] Skip")
+            print("  [a] Abort")
+            while True:
+                choice = input("Choice [d/s/a]: ").strip().lower()
+                if choice == "d":
+                    shutil.rmtree(output_dir)
+                    logger.info(f"Removed existing output: {output_dir}")
+                    break
+                elif choice == "s":
+                    logger.info(f"Skipping — output already exists: {output_dir}")
+                    return None
+                elif choice == "a":
+                    raise SystemExit("Aborted by user.")
+                else:
+                    print("  Please enter d, s, or a.")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"Loading weights: {weights}")
+    model = YOLO(str(weights), task="detect")
+
+    logger.info(f"Source: {cfg.source}  conf={cfg.conf}  iou={cfg.iou}")
+    results_gen = model.predict(
+        source=str(cfg.source),
+        conf=cfg.conf, iou=cfg.iou, imgsz=cfg.imgsz, device=cfg.device,
+        save=cfg.save, save_conf=cfg.save_conf, save_txt=cfg.save_txt,
+        save_frames=cfg.save_frames,
+        project=str(PREDICTIONS_DIR), name=derived_name,
+        exist_ok=True, stream=True,
+    )
+
+    all_frames = []
+    n = 0
+    source_fps: Optional[float] = None
+
+    for result in results_gen:
+        fps = getattr(result, "fps", None) or 30.0
+        if source_fps is None:
+            source_fps = fps
+
+        detections = []
+
+        if result.boxes is not None:
+            for box in result.boxes:
+                cls_id = int(box.cls.item())
+                cls_name = model.names[cls_id]
+                detections.append({
+                    "class_id": cls_id,
+                    "class_name": cls_name,
+                    "confidence": round(float(box.conf.item()), 4),
+                    "bbox": [round(float(x), 2) for x in box.xyxy[0].tolist()],
+                })
+
+        all_frames.append({
+            "frame": n,
+            "source": str(result.path),
+            "detections": detections,
+        })
+        n += 1
+
+    if cfg.save_json and all_frames:
+        viz_out = {
+            "fps": source_fps,
+            "total_frames": all_frames[-1]["frame"] + 1,
+            "classes": [model.names[i] for i in sorted(model.names)],
+            "source_fps": source_fps,
+            "results": [
+                {
+                    "frame": f["frame"],
+                    "source": f["source"],
+                    "detections": f["detections"],
+                }
+                for f in all_frames
+            ],
+        }
+        with open(output_dir / "detections.json", "w") as fh:
+            json.dump(viz_out, fh, indent=2)
+
+    logger.success(f"Done — {n} frame(s) processed, output: {output_dir}")
+
+    return output_dir, n
+
+
+def _results_fn(result):
+    if result is None:
+        return "", []
+    output_dir, n = result
+    return f"  Frames: {n}\n  Output: {output_dir}", []
+
+
+_DEFAULT_CONFIG = Path("ent_cv/modeling/configs/predict.yaml")
 
 
 @app.command()
-def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    features_path: Path = PROCESSED_DATA_DIR / "test_features.csv",
-    model_path: Path = MODELS_DIR / "model.pkl",
-    predictions_path: Path = PROCESSED_DATA_DIR / "test_predictions.csv",
-    # -----------------------------------------
-):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Performing inference for model...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Inference complete.")
-    # -----------------------------------------
+@notify("Prediction", results_fn=_results_fn)
+def main(config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML config")):
+    """Run YOLO inference on a single source."""
+    cfg = _load_config(config_file)
+    out = cfg.output_dir or (PREDICTIONS_DIR / (cfg.source.stem + (f"_{cfg.suffix}" if cfg.suffix else "")))
+    if out.exists() and any(out.iterdir()):
+        if not typer.confirm(f"Output exists: {out}\nDelete and continue?", default=False):
+            logger.info("Aborted.")
+            return None
+        cfg.overwrite = True
+    return run(cfg)
 
 
 if __name__ == "__main__":

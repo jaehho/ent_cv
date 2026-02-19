@@ -1,0 +1,57 @@
+from pathlib import Path
+
+from dotenv import load_dotenv, find_dotenv
+from loguru import logger
+from cvat_sdk import make_client
+from cvat_sdk.core.proxies.tasks import ResourceType
+import typer
+
+from ent_cv.config import INTERIM_DATA_DIR, LABELS
+
+dotenv_path = find_dotenv()
+load_dotenv(dotenv_path)
+
+app = typer.Typer()
+
+
+@app.command()
+def main(
+    host: str = "https://cvat.jaehho.com",
+    port: int = 443,
+    username: str = typer.Option(default=..., envvar="CVAT_USERNAME", prompt=True),
+    password: str = typer.Option(default=..., envvar="CVAT_PASSWORD", prompt=True, hide_input=True),
+    task_name: str = "batch2",
+    images_dir: Path = Path("/home/jaeho/ent_cv/data/processed/extracted_frames/batch2"),
+    share_root: Path = Path("/home/jaeho/ent_cv/data"),
+):
+    image_paths = sorted(images_dir.rglob("*.jpg")) + sorted(images_dir.rglob("*.png"))
+    if not image_paths:
+        logger.error(f"No images found in {images_dir}")
+        raise typer.Exit(1)
+    logger.info(f"Found {len(image_paths)} images in {images_dir}")
+
+    labels = [{"name": name} for name in LABELS]
+
+    logger.info(f"Connecting to CVAT at {host}:{port}...")
+    with make_client(host=host, port=port, credentials=(username, password)) as client:
+        logger.info(f"Creating task '{task_name}'...")
+        task = client.tasks.create(
+            spec={
+                "name": task_name,
+                "labels": labels,
+            }
+        )
+        logger.info(f"Task created with ID: {task.id}")
+
+        logger.info("Registering server-side images (this may take a sec)...")
+        server_file_paths = [str(p.relative_to(share_root)) for p in image_paths]
+        task.upload_data(server_file_paths, resource_type=ResourceType.SHARE)
+        task.fetch()
+        frame_count = task.size
+        logger.info(f"Upload complete! Task has {frame_count} frames.")
+
+    logger.success(f"Done! Task '{task_name}' (ID: {task.id}) is ready in CVAT.")
+
+
+if __name__ == "__main__":
+    app()

@@ -1,0 +1,14 @@
+# export config
+# Usage: uv run -m ent_cv.modeling.export
+
+# required
+weights: /mnt/data/ent_cv/models/yolo26x_20260227_124156/weights/best.pt
+
+# optional (defaults shown)
+half: true
+dynamic: false
+simplify: true
+device: "0"
+batch: 1
+# imgsz:   # defaults to value from args.yaml, then 640
+# opset:   # ONNX opset version (omit for default)

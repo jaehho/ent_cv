@@ -1,0 +1,21 @@
+# predict config
+# Usage: uv run -m ent_cv.modeling.predict
+
+# required
+source: /mnt/data/ent_cv/raw/20251113_02
+weights: /mnt/data/ent_cv/models/yolo26x_20260227_124156/weights/best.pt
+
+# optional (defaults shown)
+conf: 0.647
+iou: 0.7
+imgsz: 1024
+device: "0"
+save: true
+save_conf: true
+save_txt: true
+save_json: true
+save_frames: true
+onnx: false
+# output_dir:   # defaults to predictions/<source_stem>
+# suffix:       # appended to output dir name (e.g. "v2" → predictions/<source_stem>_v2)
+overwrite: false

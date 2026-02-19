@@ -1,0 +1,37 @@
+# postprocess config
+# Usage: uv run -m ent_cv.modeling.postprocess
+
+# required
+raw_json: /mnt/data/ent_cv/predictions/20251113_02/detections.json 
+
+# optional
+# output_dir:  # defaults to same directory as raw_json
+
+# Filtering method: run_length | majority_vote | gaussian
+#
+#   run_length    – drop class runs shorter than min_duration_sec;
+#                   fill gaps < gap_fill_sec first so brief occlusions
+#                   don't split a genuine continuous use into two short runs.
+#
+#   majority_vote – symmetric rolling window; keep class only when present
+#                   in > vote_threshold fraction of the window.
+#
+#   gaussian      – Gaussian-weighted majority_vote; softer onset/offset
+#                   edges than the hard rectangular window.
+#
+method: run_length
+
+# [run_length] A class must be continuously present for at least this many
+# seconds to survive. Default 3s ≈ fastest plausible instrument swap in OR.
+min_duration_sec: 3.0
+
+# [run_length] Gaps shorter than this (sec) are bridged before the duration
+# check, so a brief occlusion does not split a genuine run in two.
+gap_fill_sec: 1.0
+
+# [majority_vote / gaussian] Full sliding window width in seconds.
+window_sec: 3.0
+
+# [majority_vote / gaussian] Fraction of the window the class must occupy
+# to be kept (0–1). Default 0.5 = strict majority.
+vote_threshold: 0.5

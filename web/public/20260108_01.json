@@ -1,0 +1,1731 @@
+{
+  "fps": 1,
+  "total_frames": 9201,
+  "classes": [
+    "Forceps",
+    "Non-forcep instruments",
+    "Navigation probe",
+    "Navigation suction",
+    "Suction bovie",
+    "Microdebrider"
+  ],
+  "source_fps": 30.0,
+  "vid_stride": 3000,
+  "results": [
+    {
+      "frame": 0,
+      "timestamp": 0.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9829,
+          "bbox": [
+            1415.05,
+            491.24,
+            1503.95,
+            751.24
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 100,
+      "timestamp": 100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 200,
+      "timestamp": 200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Forceps"
+      ],
+      "detections": [
+        {
+          "class_id": 0,
+          "class_name": "Forceps",
+          "confidence": 0.9784,
+          "bbox": [
+            1238.46,
+            606.54,
+            1500.16,
+            760.87
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 300,
+      "timestamp": 300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Forceps"
+      ],
+      "detections": [
+        {
+          "class_id": 0,
+          "class_name": "Forceps",
+          "confidence": 0.9635,
+          "bbox": [
+            1318.14,
+            487.75,
+            1500.03,
+            742.66
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 400,
+      "timestamp": 400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9728,
+          "bbox": [
+            1238.27,
+            419.97,
+            1481.55,
+            747.28
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 500,
+      "timestamp": 500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9784,
+          "bbox": [
+            1172.19,
+            510.37,
+            1479.23,
+            758.15
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 600,
+      "timestamp": 600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Forceps"
+      ],
+      "detections": [
+        {
+          "class_id": 0,
+          "class_name": "Forceps",
+          "confidence": 0.9819,
+          "bbox": [
+            1179.62,
+            601.05,
+            1478.23,
+            758.6
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 700,
+      "timestamp": 700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9751,
+          "bbox": [
+            1152.2,
+            543.92,
+            1469.53,
+            755.18
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 800,
+      "timestamp": 800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.977,
+          "bbox": [
+            1208.91,
+            470.28,
+            1476.12,
+            752.92
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 900,
+      "timestamp": 900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Forceps"
+      ],
+      "detections": [
+        {
+          "class_id": 0,
+          "class_name": "Forceps",
+          "confidence": 0.9763,
+          "bbox": [
+            1310.76,
+            557.59,
+            1497.7,
+            761.73
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 1000,
+      "timestamp": 1000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9798,
+          "bbox": [
+            1193.25,
+            489.17,
+            1484.94,
+            761.1
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 1100,
+      "timestamp": 1100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.972,
+          "bbox": [
+            1213.04,
+            531.1,
+            1488.39,
+            761.48
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 1200,
+      "timestamp": 1200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.979,
+          "bbox": [
+            1301.09,
+            554.49,
+            1501.77,
+            755.99
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 1300,
+      "timestamp": 1300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9749,
+          "bbox": [
+            1037.02,
+            592.11,
+            1229.85,
+            744.62
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 1400,
+      "timestamp": 1400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9789,
+          "bbox": [
+            957.38,
+            587.79,
+            1224.33,
+            750.36
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 1500,
+      "timestamp": 1500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 1600,
+      "timestamp": 1600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 1700,
+      "timestamp": 1700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9796,
+          "bbox": [
+            988.78,
+            616.01,
+            1232.22,
+            743.75
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 1800,
+      "timestamp": 1800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 1900,
+      "timestamp": 1900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction",
+        "Suction bovie"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9817,
+          "bbox": [
+            1040.91,
+            472.54,
+            1246.98,
+            728.16
+          ]
+        },
+        {
+          "class_id": 7,
+          "class_name": "Suction bovie",
+          "confidence": 0.7534,
+          "bbox": [
+            994.27,
+            539.39,
+            1222.38,
+            734.56
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2000,
+      "timestamp": 2000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction",
+        "Suction bovie"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.8249,
+          "bbox": [
+            1001.53,
+            486.84,
+            1232.19,
+            739.33
+          ]
+        },
+        {
+          "class_id": 7,
+          "class_name": "Suction bovie",
+          "confidence": 0.2538,
+          "bbox": [
+            998.47,
+            552.12,
+            1229.3,
+            740.62
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2100,
+      "timestamp": 2100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction",
+        "Suction bovie"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9593,
+          "bbox": [
+            972.38,
+            501.72,
+            1243.14,
+            732.63
+          ]
+        },
+        {
+          "class_id": 7,
+          "class_name": "Suction bovie",
+          "confidence": 0.3188,
+          "bbox": [
+            969.43,
+            555.55,
+            1214.79,
+            735.92
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2200,
+      "timestamp": 2200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Non-forcep instruments"
+      ],
+      "detections": [
+        {
+          "class_id": 1,
+          "class_name": "Non-forcep instruments",
+          "confidence": 0.9561,
+          "bbox": [
+            1105.21,
+            617.36,
+            1223.29,
+            737.9
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2300,
+      "timestamp": 2300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Non-forcep instruments"
+      ],
+      "detections": [
+        {
+          "class_id": 1,
+          "class_name": "Non-forcep instruments",
+          "confidence": 0.9737,
+          "bbox": [
+            1086.8,
+            624.39,
+            1232.93,
+            743.51
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2400,
+      "timestamp": 2400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9639,
+          "bbox": [
+            953.28,
+            677.31,
+            1230.05,
+            746.32
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2500,
+      "timestamp": 2500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.8528,
+          "bbox": [
+            947.78,
+            686.16,
+            1229.89,
+            743.51
+          ]
+        },
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.835,
+          "bbox": [
+            946.8,
+            686.35,
+            1228.72,
+            744.91
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2600,
+      "timestamp": 2600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Non-forcep instruments"
+      ],
+      "detections": [
+        {
+          "class_id": 1,
+          "class_name": "Non-forcep instruments",
+          "confidence": 0.9655,
+          "bbox": [
+            1105.34,
+            574.04,
+            1239.97,
+            744.75
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2700,
+      "timestamp": 2700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation probe"
+      ],
+      "detections": [
+        {
+          "class_id": 3,
+          "class_name": "Navigation probe",
+          "confidence": 0.3722,
+          "bbox": [
+            953.79,
+            622.56,
+            1229.28,
+            742.88
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2800,
+      "timestamp": 2800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation probe"
+      ],
+      "detections": [
+        {
+          "class_id": 3,
+          "class_name": "Navigation probe",
+          "confidence": 0.9597,
+          "bbox": [
+            987.9,
+            650.66,
+            1232.92,
+            749.9
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 2900,
+      "timestamp": 2900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 3000,
+      "timestamp": 3000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction",
+        "Suction bovie"
+      ],
+      "detections": [
+        {
+          "class_id": 7,
+          "class_name": "Suction bovie",
+          "confidence": 0.9524,
+          "bbox": [
+            937.45,
+            543.86,
+            1242.04,
+            747.72
+          ]
+        },
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.8823,
+          "bbox": [
+            963.23,
+            521.08,
+            1247.52,
+            741.56
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 3100,
+      "timestamp": 3100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation probe"
+      ],
+      "detections": [
+        {
+          "class_id": 3,
+          "class_name": "Navigation probe",
+          "confidence": 0.9389,
+          "bbox": [
+            1032.55,
+            625.04,
+            1238.04,
+            754.33
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 3200,
+      "timestamp": 3200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 3300,
+      "timestamp": 3300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9667,
+          "bbox": [
+            968.19,
+            656.92,
+            1230.41,
+            756.18
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 3400,
+      "timestamp": 3400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part1.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9771,
+          "bbox": [
+            879.81,
+            544.04,
+            1227.24,
+            752.83
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 3500,
+      "timestamp": 3500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Non-forcep instruments"
+      ],
+      "detections": [
+        {
+          "class_id": 1,
+          "class_name": "Non-forcep instruments",
+          "confidence": 0.9799,
+          "bbox": [
+            1019.4,
+            501.04,
+            1233.21,
+            749.67
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 3600,
+      "timestamp": 3600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Forceps"
+      ],
+      "detections": [
+        {
+          "class_id": 0,
+          "class_name": "Forceps",
+          "confidence": 0.9803,
+          "bbox": [
+            1017.84,
+            519.02,
+            1232.05,
+            746.31
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 3700,
+      "timestamp": 3700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9074,
+          "bbox": [
+            1011.31,
+            622.59,
+            1227.97,
+            750.62
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 3800,
+      "timestamp": 3800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 3900,
+      "timestamp": 3900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9779,
+          "bbox": [
+            1008.43,
+            609.45,
+            1230.35,
+            745.54
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 4000,
+      "timestamp": 4000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.974,
+          "bbox": [
+            1010.74,
+            625.65,
+            1235.5,
+            750.74
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 4100,
+      "timestamp": 4100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 4200,
+      "timestamp": 4200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9756,
+          "bbox": [
+            965.93,
+            534.88,
+            1225.5,
+            745.25
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 4300,
+      "timestamp": 4300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9687,
+          "bbox": [
+            973.45,
+            667.94,
+            1226.13,
+            748.85
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 4400,
+      "timestamp": 4400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 4500,
+      "timestamp": 4500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 4600,
+      "timestamp": 4600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.974,
+          "bbox": [
+            1041.22,
+            557.61,
+            1227.94,
+            744.94
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 4700,
+      "timestamp": 4700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 4800,
+      "timestamp": 4800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9695,
+          "bbox": [
+            991.85,
+            671.71,
+            1221.73,
+            750.64
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 4900,
+      "timestamp": 4900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9795,
+          "bbox": [
+            1012.67,
+            556.62,
+            1224.03,
+            746.7
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5000,
+      "timestamp": 5000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9759,
+          "bbox": [
+            978.86,
+            492.51,
+            1226.07,
+            739.67
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5100,
+      "timestamp": 5100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9796,
+          "bbox": [
+            1126.2,
+            551.24,
+            1247.96,
+            731.13
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5200,
+      "timestamp": 5200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9677,
+          "bbox": [
+            1028.04,
+            632.15,
+            1227.1,
+            746.65
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5300,
+      "timestamp": 5300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9715,
+          "bbox": [
+            965.55,
+            582.08,
+            1210.0,
+            740.8
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5400,
+      "timestamp": 5400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9674,
+          "bbox": [
+            1001.21,
+            581.43,
+            1210.61,
+            734.47
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5500,
+      "timestamp": 5500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9756,
+          "bbox": [
+            990.13,
+            559.53,
+            1212.07,
+            738.13
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5600,
+      "timestamp": 5600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9794,
+          "bbox": [
+            933.18,
+            556.98,
+            1202.35,
+            734.17
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5700,
+      "timestamp": 5700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9689,
+          "bbox": [
+            1016.83,
+            671.18,
+            1208.98,
+            748.72
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5800,
+      "timestamp": 5800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9834,
+          "bbox": [
+            1019.19,
+            517.03,
+            1226.23,
+            743.7
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 5900,
+      "timestamp": 5900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Forceps"
+      ],
+      "detections": [
+        {
+          "class_id": 0,
+          "class_name": "Forceps",
+          "confidence": 0.9553,
+          "bbox": [
+            1072.66,
+            627.29,
+            1230.9,
+            744.69
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6000,
+      "timestamp": 6000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9798,
+          "bbox": [
+            927.91,
+            548.88,
+            1207.78,
+            733.85
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6100,
+      "timestamp": 6100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9781,
+          "bbox": [
+            888.55,
+            468.61,
+            1210.95,
+            720.97
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6200,
+      "timestamp": 6200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 6300,
+      "timestamp": 6300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9818,
+          "bbox": [
+            906.04,
+            499.79,
+            1218.35,
+            740.44
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6400,
+      "timestamp": 6400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9787,
+          "bbox": [
+            944.34,
+            553.34,
+            1206.33,
+            736.26
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6500,
+      "timestamp": 6500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9715,
+          "bbox": [
+            921.65,
+            528.2,
+            1219.84,
+            737.06
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6600,
+      "timestamp": 6600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9672,
+          "bbox": [
+            1043.02,
+            525.24,
+            1239.81,
+            736.89
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6700,
+      "timestamp": 6700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.976,
+          "bbox": [
+            1002.91,
+            587.12,
+            1226.17,
+            747.09
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6800,
+      "timestamp": 6800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.8464,
+          "bbox": [
+            908.99,
+            528.34,
+            1232.64,
+            749.02
+          ]
+        },
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.8053,
+          "bbox": [
+            907.95,
+            528.03,
+            1231.91,
+            747.01
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6900,
+      "timestamp": 6900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part2.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9719,
+          "bbox": [
+            967.08,
+            667.78,
+            1216.67,
+            752.37
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7000,
+      "timestamp": 7000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 7100,
+      "timestamp": 7100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 7200,
+      "timestamp": 7200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.974,
+          "bbox": [
+            986.49,
+            659.01,
+            1224.25,
+            747.59
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7300,
+      "timestamp": 7300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9745,
+          "bbox": [
+            788.67,
+            393.08,
+            1156.15,
+            651.39
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7400,
+      "timestamp": 7400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 7500,
+      "timestamp": 7500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9735,
+          "bbox": [
+            989.79,
+            639.31,
+            1224.88,
+            751.53
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7600,
+      "timestamp": 7600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.974,
+          "bbox": [
+            1053.07,
+            517.02,
+            1234.24,
+            737.61
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7700,
+      "timestamp": 7700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9737,
+          "bbox": [
+            1090.03,
+            529.72,
+            1243.45,
+            737.39
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7800,
+      "timestamp": 7800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9688,
+          "bbox": [
+            1032.87,
+            518.78,
+            1243.7,
+            739.34
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7900,
+      "timestamp": 7900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 8000,
+      "timestamp": 8000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 8100,
+      "timestamp": 8100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 8200,
+      "timestamp": 8200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9672,
+          "bbox": [
+            1033.72,
+            650.63,
+            1237.16,
+            751.52
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 8300,
+      "timestamp": 8300.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Microdebrider"
+      ],
+      "detections": [
+        {
+          "class_id": 8,
+          "class_name": "Microdebrider",
+          "confidence": 0.9772,
+          "bbox": [
+            953.92,
+            489.34,
+            1240.63,
+            741.82
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 8400,
+      "timestamp": 8400.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 8500,
+      "timestamp": 8500.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Forceps"
+      ],
+      "detections": [
+        {
+          "class_id": 0,
+          "class_name": "Forceps",
+          "confidence": 0.9807,
+          "bbox": [
+            1039.96,
+            532.21,
+            1249.21,
+            737.55
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 8600,
+      "timestamp": 8600.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 8700,
+      "timestamp": 8700.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9465,
+          "bbox": [
+            1003.45,
+            621.88,
+            1242.71,
+            753.5
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 8800,
+      "timestamp": 8800.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9561,
+          "bbox": [
+            1061.82,
+            646.4,
+            1245.66,
+            739.67
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 8900,
+      "timestamp": 8900.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    },
+    {
+      "frame": 9000,
+      "timestamp": 9000.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.9739,
+          "bbox": [
+            1049.24,
+            603.5,
+            1247.02,
+            741.84
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 9100,
+      "timestamp": 9100.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [
+        "Navigation suction"
+      ],
+      "detections": [
+        {
+          "class_id": 4,
+          "class_name": "Navigation suction",
+          "confidence": 0.977,
+          "bbox": [
+            1009.81,
+            574.59,
+            1248.3,
+            740.71
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 9200,
+      "timestamp": 9200.0,
+      "source": "/home/jaeho/ent_cv/data/raw/20260108_01/20260108_01_Part3.mp4",
+      "classes_present": [],
+      "detections": []
+    }
+  ]
+}
