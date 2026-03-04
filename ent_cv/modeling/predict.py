@@ -32,6 +32,7 @@ class PredictConfig:
     save_txt: bool
     save_json: bool
     save_frames: bool
+    verbose: bool = True
     # optional (None = not set)
     output_dir: Optional[Path] = None
     suffix: Optional[str] = None
@@ -101,18 +102,13 @@ def run(cfg: PredictConfig) -> Optional[tuple[Path, int]]:
         save=cfg.save, save_conf=cfg.save_conf, save_txt=cfg.save_txt,
         save_frames=cfg.save_frames,
         project=str(PREDICTIONS_DIR), name=derived_name,
-        exist_ok=True, stream=True,
+        exist_ok=True, stream=True, verbose=cfg.verbose,
     )
 
     all_frames = []
     n = 0
-    source_fps: Optional[float] = None
 
     for result in results_gen:
-        fps = getattr(result, "fps", None) or 30.0
-        if source_fps is None:
-            source_fps = fps
-
         detections = []
 
         if result.boxes is not None:
@@ -134,22 +130,8 @@ def run(cfg: PredictConfig) -> Optional[tuple[Path, int]]:
         n += 1
 
     if cfg.save_json and all_frames:
-        viz_out = {
-            "fps": source_fps,
-            "total_frames": all_frames[-1]["frame"] + 1,
-            "classes": [model.names[i] for i in sorted(model.names)],
-            "source_fps": source_fps,
-            "results": [
-                {
-                    "frame": f["frame"],
-                    "source": f["source"],
-                    "detections": f["detections"],
-                }
-                for f in all_frames
-            ],
-        }
         with open(output_dir / "detections.json", "w") as fh:
-            json.dump(viz_out, fh, indent=2)
+            json.dump(all_frames, fh, indent=2)
 
     logger.success(f"Done — {n} frame(s) processed, output: {output_dir}")
 

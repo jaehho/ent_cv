@@ -26,7 +26,6 @@ from typing import Any, Optional
 import typer
 import yaml
 from loguru import logger
-from tqdm import tqdm
 
 from ent_cv.utils import notify
 
@@ -106,9 +105,9 @@ def _train_summary(results: list[dict]) -> str:
 
 
 def _run_predict(run_cfg: dict) -> dict:
-    from ent_cv.modeling.predict import PredictConfig, run
+    from ent_cv.modeling.predict import PredictConfig, run, _results_fn
     cfg = PredictConfig(**{k: v for k, v in run_cfg.items() if k in PredictConfig.__dataclass_fields__})
-    result = run(cfg)
+    result = notify("Prediction", results_fn=_results_fn)(run)(cfg)
     entry: dict = {"source": str(cfg.source)}
     if result is None:
         entry["skipped"] = True
@@ -135,9 +134,9 @@ def _run_postprocess(run_cfg: dict) -> dict:
 
 
 def _run_train(run_cfg: dict) -> dict:
-    from ent_cv.modeling.train import TrainConfig, run
+    from ent_cv.modeling.train import TrainConfig, run, _results_fn
     cfg = TrainConfig(**{k: v for k, v in run_cfg.items() if k in TrainConfig.__dataclass_fields__})
-    result = run(cfg)
+    result = notify("Training", results_fn=_results_fn)(run)(cfg)
     rd = getattr(result, "results_dict", {})
     save_dir = Path(str(getattr(result, "save_dir", "")))
     entry: dict = {"name": save_dir.name or "?"}
@@ -196,7 +195,7 @@ def main(config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML 
     logger.info(f"Starting {operation} batch — {len(runs)} run(s)")
     run_results: list[dict] = []
 
-    for i, run_cfg in enumerate(tqdm(runs, desc=operation, unit="run"), 1):
+    for i, run_cfg in enumerate(runs, 1):
         logger.info(f"[{i}/{len(runs)}] {run_cfg}")
         try:
             if operation == "predict":
