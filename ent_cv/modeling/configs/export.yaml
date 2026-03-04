@@ -1,14 +1,29 @@
 # export config
 # Usage: uv run -m ent_cv.modeling.export
 
-# required
-weights: /mnt/data/ent_cv/models/yolo26x_20260227_124156/weights/best.pt
+# Only 'weights' is required. All other options are passed through to
+# model.export() only when uncommented; unset options use Ultralytics defaults.
 
-# optional (defaults shown)
-half: true
-dynamic: false
-simplify: true
+weights: /mnt/data/ent_cv/models/v1/weights/best.pt
+
+format: engine   # onnx | torchscript | openvino | engine (TensorRT) | coreml | ...
+# imgsz:           # defaults to args.yaml value, then 640
+
+# half: false
+# int8: false
+
+# dynamic: false
+# simplify: true
+# optimize: false   # TorchScript mobile optimisation
+# keras: false      # TF SavedModel via Keras
+# nms: false        # append NMS to graph
+# end2end:          # override end-to-end mode (YOLO26 / YOLOv10)
+
+# opset:            # ONNX opset version (omit for latest)
+# workspace:        # TensorRT max workspace GiB (null = auto)
+
+# data:             # dataset yaml for INT8 calibration (default: coco8.yaml)
+# fraction: 1.0
+
 device: "0"
-batch: 1
-# imgsz:   # defaults to value from args.yaml, then 640
-# opset:   # ONNX opset version (omit for default)
+# batch: 1

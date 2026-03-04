@@ -1,0 +1,17 @@
+# val config
+# Usage: uv run -m ent_cv.modeling.val
+
+# required
+weights: /mnt/data/ent_cv/models/yolo26x_20260227_124156/weights/best.pt
+data: /mnt/data/ent_cv/datasets/dataset_batch2/data_with_val.yaml
+
+# optional (defaults shown)
+conf: 0.001
+iou: 0.6
+device: "0"
+half: false
+split: val       # "val", "test", or "train"
+save_json: false
+verbose: true
+# imgsz:         # defaults to value from args.yaml, then 640
+# batch:         # defaults to ultralytics default

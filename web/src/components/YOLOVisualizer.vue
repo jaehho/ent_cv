@@ -30,7 +30,7 @@
     <div class="header">
       <div style="display:flex;align-items:center;gap:16px">
         <span class="header-title">YOLO VIZ</span>
-        <span class="header-meta">{{ data.total_frames }} frames · {{ data.fps }} fps · {{ data.classes.length }} classes</span>
+        <span class="header-meta">{{ data.total_frames }} frames · {{ data.classes.length }} classes</span>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <button
@@ -85,7 +85,7 @@
         <!-- Time display -->
         <div class="time-display">
           <div class="time-value">
-            {{ data.fps === 1 ? formatRealTime(currentFrame) : formatTime(currentTime) }}
+            {{ formatTime(currentTime) }}
           </div>
           <div class="time-sub">Frame {{ currentFrame }} / {{ data.total_frames - 1 }}</div>
         </div>
@@ -187,9 +187,9 @@
           <div v-else style="text-align:center;padding:20px">
             <div style="font-size:14px;color:#333;margin-bottom:4px">
               No video loaded —
-              {{ data.fps === 1 ? 'each frame = 1 second' : 'using frame simulation' }}
+              using frame simulation
             </div>
-            <div class="sim-time">{{ data.fps === 1 ? formatRealTime(currentFrame) : formatTime(currentTime) }}</div>
+            <div class="sim-time">{{ formatTime(currentTime) }}</div>
           </div>
 
           <div v-if="currentPartName" class="part-badge">{{ currentPartName }}</div>
@@ -248,7 +248,7 @@
             />
             <div v-if="hoveredFrame !== null" class="hover-tooltip">
               Frame {{ hoveredFrame }} ·
-              {{ data.fps === 1 ? formatRealTime(hoveredFrame) : formatTime(hoveredFrame / data.fps) }}
+              {{ formatTime(hoveredFrame / data.fps) }}
             </div>
           </div>
         </div>
@@ -340,7 +340,7 @@
 import {
   ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick, shallowRef,
 } from "vue";
-import { CLASS_COLORS, formatTime, formatRealTime } from "../utils/index.js";
+import { CLASS_COLORS, formatTime } from "../utils/index.js";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const RATES = [0.25, 0.5, 1, 2, 4];
@@ -398,22 +398,7 @@ function scheduleDraws(flags) {
 }
 
 // ── Derived ────────────────────────────────────────────────────────────────
-const currentTime = computed(() => currentFrame.value / (data.value?.fps || 30));
-
-// Derive the source video fps from timestamp intervals, then snap to the nearest
-// standard framerate. Using just two timestamps gives ~30.03 which accumulates
-// drift; averaging over many samples + snapping to a standard value is exact.
-const sourceFps = computed(() => {
-  const r = data.value?.results;
-  if (!r || r.length < 2) return 30;
-  // Average over up to 300 intervals for a stable estimate
-  const n = Math.min(r.length - 1, 300);
-  const dt = (r[n].timestamp - r[0].timestamp) / n;
-  const raw = dt > 0 ? 1 / dt : 30;
-  // Snap to nearest standard framerate
-  const standards = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60];
-  return standards.reduce((a, b) => Math.abs(b - raw) < Math.abs(a - raw) ? b : a);
-});
+const currentTime = computed(() => currentFrame.value / data.value.fps);
 
 const currentPartRawUrl = computed(() => {
   if (!activeCaseName.value) return null;
@@ -428,12 +413,8 @@ const currentPartPredictionFrameUrl = computed(() => {
   const entry = frameMap.value.get(currentFrame.value);
   if (!entry?.source) return null;
   const partName = entry.source.split('/').pop().replace(/\.mp4$/i, '');
-  // Compute exact 0-based frame index within the part using the source video fps.
-  // Sending ?n= (frame index) instead of ?t= (timestamp) avoids drift caused by
-  // AVI fps metadata != source fps (e.g. AVI says 29fps but source is 30fps).
-  const t_within_part = entry.timestamp - (partStartTs.value.get(entry.source) ?? 0);
-  const frameIndex = Math.round(t_within_part * sourceFps.value);
-  return `/api/prediction-frame/${activeCaseName.value}/${partName}.avi?n=${frameIndex}`;
+  const localFrame = currentFrame.value - (partStartFrame.value.get(entry.source) ?? 0);
+  return `/data/predictions/${activeCaseName.value}/${partName}_frames/${partName}_${localFrame}.jpg`;
 });
 
 // In prediction mode we show frames via <img>; no video element is needed.
@@ -445,8 +426,9 @@ const currentPartVideoUrl = computed(() =>
 const currentPartTimestamp = computed(() => {
   const entry = frameMap.value.get(currentFrame.value);
   if (!entry) return currentFrame.value;
+  const fps = data.value.fps;
   const startTs = partStartTs.value.get(entry.source) ?? 0;
-  return entry.timestamp - startTs;
+  return entry.frame / fps - startTs;
 });
 
 const currentPartName = computed(() => {
@@ -461,12 +443,23 @@ const frameMap = computed(() => {
 });
 
 // Per-part start timestamp (global ts of the first frame in each part file).
-// Used to convert global timestamps → per-file currentTime for the video element.
+// Derived from frame number + fps since no timestamp is stored in detections.json.
 const partStartTs = computed(() => {
   if (!data.value) return new Map();
+  const fps = data.value.fps;
   const map = new Map(); // source path → start timestamp
   for (const r of data.value.results) {
-    if (!map.has(r.source)) map.set(r.source, r.timestamp);
+    if (!map.has(r.source)) map.set(r.source, r.frame / fps);
+  }
+  return map;
+});
+
+// Per-part start frame number (global frame index of the first frame in each part).
+const partStartFrame = computed(() => {
+  if (!data.value) return new Map();
+  const map = new Map(); // source path → start frame number
+  for (const r of data.value.results) {
+    if (!map.has(r.source)) map.set(r.source, r.frame);
   }
   return map;
 });
@@ -637,8 +630,9 @@ function seekToFrame(frame) {
   currentFrame.value = frame;
   if (videoRef.value && videoSrc.value) {
     const entry = frameMap.value.get(frame);
+    const fps = data.value.fps;
     const startTs = entry ? (partStartTs.value.get(entry.source) ?? 0) : 0;
-    videoRef.value.currentTime = entry ? entry.timestamp - startTs : frame;
+    videoRef.value.currentTime = entry ? entry.frame / fps - startTs : frame / fps;
   }
 }
 
@@ -934,13 +928,12 @@ watch([videoRef, data], ([videoEl, d]) => {
 // ── No-video frame simulation ──────────────────────────────────────────────
 watchEffect((onCleanup) => {
   if (videoSrc.value || !data.value || !isPlaying.value) return;
-  const fps = data.value.fps;
   const total = data.value.total_frames;
   const id = setInterval(() => {
     const next = currentFrame.value + 1;
     if (next >= total) { isPlaying.value = false; return; }
     currentFrame.value = next;
-  }, 1000 / (fps * playbackRate.value));
+  }, 1000 / (data.value.fps * playbackRate.value));
   onCleanup(() => clearInterval(id));
 });
 

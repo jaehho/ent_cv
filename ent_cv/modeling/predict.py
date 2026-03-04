@@ -21,19 +21,18 @@ class PredictConfig:
     # required
     source: Path
     weights: Path
-    conf: float
-    iou: float
-    imgsz: int
-    device: str
-    onnx: bool
-    overwrite: bool
-    save: bool
-    save_conf: bool
-    save_txt: bool
-    save_json: bool
-    save_frames: bool
-    verbose: bool = True
-    # optional (None = not set)
+    # optional
+    conf: Optional[float] = None
+    iou: Optional[float] = None
+    imgsz: Optional[int] = None
+    device: Optional[str] = None
+    overwrite: Optional[bool] = None
+    save: Optional[bool] = None
+    save_conf: Optional[bool] = None
+    save_txt: Optional[bool] = None
+    save_json: Optional[bool] = None
+    save_frames: Optional[bool] = None
+    verbose: Optional[bool] = None
     output_dir: Optional[Path] = None
     suffix: Optional[str] = None
 
@@ -55,9 +54,7 @@ def _load_config(config_file: Path) -> PredictConfig:
 
 def run(cfg: PredictConfig) -> Optional[tuple[Path, int]]:
     """Run YOLO inference. Returns (output_dir, frame_count) or None if skipped."""
-    weights = cfg.weights.parent / "best.onnx" if cfg.onnx else cfg.weights
-    if cfg.onnx:
-        logger.info(f"ONNX mode: using {weights}")
+    weights = cfg.weights
 
     if not weights.exists():
         raise FileNotFoundError(f"Weights not found: {weights}")
@@ -96,13 +93,19 @@ def run(cfg: PredictConfig) -> Optional[tuple[Path, int]]:
     model = YOLO(str(weights), task="detect")
 
     logger.info(f"Source: {cfg.source}  conf={cfg.conf}  iou={cfg.iou}")
+    predict_kwargs = {
+        k: v for k, v in {
+            "conf": cfg.conf, "iou": cfg.iou, "imgsz": cfg.imgsz,
+            "device": cfg.device, "save": cfg.save, "save_conf": cfg.save_conf,
+            "save_txt": cfg.save_txt, "save_frames": cfg.save_frames,
+            "verbose": cfg.verbose,
+        }.items() if v is not None
+    }
     results_gen = model.predict(
         source=str(cfg.source),
-        conf=cfg.conf, iou=cfg.iou, imgsz=cfg.imgsz, device=cfg.device,
-        save=cfg.save, save_conf=cfg.save_conf, save_txt=cfg.save_txt,
-        save_frames=cfg.save_frames,
         project=str(PREDICTIONS_DIR), name=derived_name,
-        exist_ok=True, stream=True, verbose=cfg.verbose,
+        exist_ok=True, stream=True,
+        **predict_kwargs,
     )
 
     all_frames = []

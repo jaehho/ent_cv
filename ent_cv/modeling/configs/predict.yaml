@@ -3,7 +3,7 @@
 
 # required
 source: /mnt/data/ent_cv/raw/20251113_02
-weights: /mnt/data/ent_cv/models/yolo26x_20260227_124156/weights/best.pt
+weights: /mnt/data/ent_cv/models/v1/weights/best.engine
 
 # optional (defaults shown)
 conf: 0.647
@@ -15,7 +15,7 @@ save_conf: true
 save_txt: true
 save_json: true
 save_frames: true
-onnx: false
+verbose: true
 # output_dir:   # defaults to predictions/<source_stem>
 # suffix:       # appended to output dir name (e.g. "v2" → predictions/<source_stem>_v2)
-overwrite: false
+# overwrite: false 

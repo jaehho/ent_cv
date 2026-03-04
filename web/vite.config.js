@@ -1,8 +1,8 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
-import { readdirSync, statSync, createReadStream, existsSync } from "node:fs";
-import { spawn, spawnSync } from "node:child_process";
-import { join, resolve, dirname } from "node:path";
+import { readdirSync, statSync, createReadStream, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -68,72 +68,29 @@ export default defineConfig({
           } catch { next(); }
         });
 
-        // GET /api/prediction-frame/:case/:file?n=<frame_index> → extract single JPEG from MJPEG AVI
-        // Uses frame index (not timestamp) to avoid drift caused by AVI fps != source fps.
-        // AVI fps is probed once per file and cached.
-        const aviFpsCache = new Map();
-        function getAviFps(aviPath) {
-          if (aviFpsCache.has(aviPath)) return aviFpsCache.get(aviPath);
-          const result = spawnSync("ffprobe", [
+        // fps cache: raw video path → fps number
+        const fpsCacheMap = new Map();
+        function probeVideoFps(videoPath) {
+          if (fpsCacheMap.has(videoPath)) return fpsCacheMap.get(videoPath);
+          const probe = spawnSync("ffprobe", [
             "-v", "error",
             "-select_streams", "v:0",
             "-show_entries", "stream=r_frame_rate",
             "-of", "csv=p=0",
-            aviPath,
+            videoPath,
           ]);
-          const raw = result.stdout?.toString().trim(); // e.g. "29/1" or "30000/1001"
-          let fps = 30;
-          if (raw) {
-            const [num, den] = raw.split("/").map(Number);
-            fps = den ? num / den : num;
-          }
-          aviFpsCache.set(aviPath, fps);
+          const raw = probe.stdout?.toString().trim(); // e.g. "30000/1001" or "30/1"
+          if (!raw) throw new Error(`ffprobe returned no fps for ${videoPath}`);
+          const [num, den] = raw.split("/").map(Number);
+          let fps = den ? num / den : num;
+          // Snap to nearest standard framerate
+          const standards = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60];
+          fps = standards.reduce((a, b) => Math.abs(b - fps) < Math.abs(a - fps) ? b : a);
+          fpsCacheMap.set(videoPath, fps);
           return fps;
         }
 
-        server.middlewares.use("/api/prediction-frame", (req, res, next) => {
-          if (req.method !== "GET") return next();
-          const [path] = req.url.split("?");
-          const safePath = path.split("/").filter(s => s && s !== "..").join("/");
-          const aviPath = join(PREDICTIONS_DIR, safePath.replace(/\.(avi|mp4)$/i, "")) + ".avi";
-          if (!existsSync(aviPath)) return next();
-
-          // Prefer ?n=FRAME_INDEX (exact); fall back to ?t=SECONDS (legacy)
-          const nMatch = req.url.match(/[?&]n=(\d+)/);
-          const tMatch = req.url.match(/[?&]t=([\d.]+)/);
-          let seekSec;
-          if (nMatch) {
-            const frameIndex = parseInt(nMatch[1], 10);
-            const aviFps = getAviFps(aviPath);
-            // Seek to the MIDDLE of the target frame's time window.
-            // Frame N spans [N/fps, (N+1)/fps). Seeking to exactly N/fps can
-            // land on frame N-1 due to floating-point rounding in ffmpeg's
-            // demuxer, causing a 1-frame drift. Adding 0.5 frames of padding
-            // places the seek point safely inside frame N's window.
-            seekSec = (frameIndex + 0.5) / aviFps;
-          } else {
-            seekSec = tMatch ? parseFloat(tMatch[1]) : 0;
-          }
-
-          res.setHeader("Content-Type", "image/jpeg");
-          res.setHeader("Cache-Control", "public, max-age=300");
-
-          const ff = spawn("ffmpeg", [
-            "-ss", String(seekSec),
-            "-i", aviPath,
-            "-frames:v", "1",
-            "-f", "image2",
-            "-vcodec", "mjpeg",
-            "-q:v", "3",
-            "pipe:1",
-          ], { stdio: ["ignore", "pipe", "ignore"] });
-
-          ff.stdout.pipe(res);
-          req.on("close", () => ff.kill());
-          ff.on("error", () => { if (!res.headersSent) res.end(); });
-        });
-
-        // GET /data/predictions/:case/detections.json → serve file
+        // GET /data/predictions/:case/... → serve detections.json (enriched) and JPEG frames
         server.middlewares.use("/data/predictions", (req, res, next) => {
           if (req.method !== "GET") return next();
           // Prevent path traversal
@@ -142,6 +99,36 @@ export default defineConfig({
           try {
             const stat = statSync(filePath);
             if (!stat.isFile()) return next();
+            const ext = filePath.split('.').pop().toLowerCase();
+            if (ext === 'jpg' || ext === 'jpeg') {
+              res.setHeader("Content-Type", "image/jpeg");
+              createReadStream(filePath).pipe(res);
+              return;
+            }
+            // For detections.json: enrich the flat results array with fps + derived metadata
+            if (safePath.endsWith("detections.json")) {
+              const results = JSON.parse(readFileSync(filePath, "utf-8"));
+              // Derive ordered class list from detection data
+              const classMap = new Map();
+              for (const r of results) {
+                for (const d of r.detections) {
+                  if (!classMap.has(d.class_id)) classMap.set(d.class_id, d.class_name);
+                }
+              }
+              const classes = [...classMap.entries()]
+                .sort((a, b) => a[0] - b[0])
+                .map(([, name]) => name);
+              // Probe fps from the first raw video in this case
+              const caseName = safePath.split("/")[0];
+              const rawCaseDir = join(RAW_DIR, caseName);
+              const mp4s = readdirSync(rawCaseDir).filter(f => f.toLowerCase().endsWith(".mp4")).sort();
+              if (mp4s.length === 0) throw new Error(`No raw .mp4 files found for case ${caseName}`);
+              const fps = probeVideoFps(join(rawCaseDir, mp4s[0]));
+              const enriched = { fps, total_frames: results.length, classes, results };
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify(enriched));
+              return;
+            }
             res.setHeader("Content-Type", "application/json");
             createReadStream(filePath).pipe(res);
           } catch { next(); }

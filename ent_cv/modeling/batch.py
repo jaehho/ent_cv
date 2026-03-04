@@ -119,17 +119,10 @@ def _run_predict(run_cfg: dict) -> dict:
 
 
 def _run_postprocess(run_cfg: dict) -> dict:
+    import dataclasses
     from ent_cv.modeling.postprocess import PostprocessConfig, postprocess
     cfg = PostprocessConfig(**{k: v for k, v in run_cfg.items() if k in PostprocessConfig.__dataclass_fields__})
-    changes = postprocess(
-        raw_json=cfg.raw_json,
-        output_dir=cfg.output_dir,
-        method=cfg.method,
-        min_duration_sec=cfg.min_duration_sec,
-        gap_fill_sec=cfg.gap_fill_sec,
-        window_sec=cfg.window_sec,
-        vote_threshold=cfg.vote_threshold,
-    )
+    changes = postprocess(**dataclasses.asdict(cfg))
     return {"source": str(cfg.raw_json), "changes": changes}
 
 
@@ -207,7 +200,7 @@ def main(config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML 
             else:
                 logger.warning(f"Operation '{operation}' not yet supported in batch mode.")
                 entry = {"result": "skipped"}
-            entry["run"] = i
+            entry["run"] = str(i)
             run_results.append(entry)
         except Exception as exc:
             logger.error(f"Run {i} failed: {exc}")

@@ -1,7 +1,7 @@
 """Run Ultralytics evolutionary hyperparameter tuning."""
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import typer
 import yaml
@@ -17,17 +17,18 @@ app = typer.Typer(add_completion=False)
 @dataclass
 class TuneConfig:
     # required
-    dataset_yaml: Path
+    data: Path
     model: str
-    epochs: int
-    iterations: int
-    imgsz: int
-    batch: int
-    device: int
-    optimizer: str
+    # optional
+    epochs: Optional[int] = None
+    iterations: Optional[int] = None
+    imgsz: Optional[int] = None
+    batch: Optional[int] = None
+    device: Optional[int] = None
+    optimizer: Optional[str] = None
 
     def __post_init__(self):
-        self.dataset_yaml = Path(self.dataset_yaml)
+        self.data = Path(self.data)
 
 
 def _load_config(config_file: Path) -> TuneConfig:
@@ -41,8 +42,8 @@ def _load_config(config_file: Path) -> TuneConfig:
 
 def run(cfg: TuneConfig) -> None:
     """Run Ultralytics evolutionary hyperparameter tuning."""
-    if not cfg.dataset_yaml.exists():
-        raise FileNotFoundError(f"Dataset YAML not found: {cfg.dataset_yaml}")
+    if not cfg.data.exists():
+        raise FileNotFoundError(f"Dataset YAML not found: {cfg.data}")
 
     model_p = Path(cfg.model)
     yolo_path = str(model_p) if model_p.suffix == ".pt" else f"{cfg.model}.pt"
@@ -51,13 +52,17 @@ def run(cfg: TuneConfig) -> None:
 
     logger.info(f"Loading {yolo_path}…")
     model_obj = cast(Any, YOLO(yolo_path))
-    logger.info(f"Dataset: {cfg.dataset_yaml} | Iterations: {cfg.iterations} | Epochs/run: {cfg.epochs}")
+    logger.info(f"Dataset: {cfg.data} | Iterations: {cfg.iterations} | Epochs/run: {cfg.epochs}")
 
     model_obj.tune(
-        data=str(cfg.dataset_yaml), epochs=cfg.epochs, iterations=cfg.iterations,
-        imgsz=cfg.imgsz, batch=cfg.batch, device=cfg.device, optimizer=cfg.optimizer,
+        data=str(cfg.data),
         project=str(tune_dir), name=cfg.model,
         plots=True, save=True, val=True,
+        **{k: v for k, v in {
+            "epochs": cfg.epochs, "iterations": cfg.iterations,
+            "imgsz": cfg.imgsz, "batch": cfg.batch,
+            "device": cfg.device, "optimizer": cfg.optimizer,
+        }.items() if v is not None},
     )
 
     best = tune_dir / cfg.model / "best_hyperparameters.yaml"

@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import typer
 import yaml
@@ -18,17 +18,18 @@ app = typer.Typer(add_completion=False)
 @dataclass
 class TrainConfig:
     # required
-    dataset_yaml: Path
+    data: Path
     model: str
-    epochs: int
-    batch: int
-    imgsz: int
-    rect: bool
-    scale: float
-    device: int
+    # optional
+    epochs: Optional[int] = None
+    batch: Optional[int] = None
+    imgsz: Optional[int] = None
+    rect: Optional[bool] = None
+    scale: Optional[float] = None
+    device: Optional[int] = None
 
     def __post_init__(self):
-        self.dataset_yaml = Path(self.dataset_yaml)
+        self.data = Path(self.data)
 
 
 def _load_config(config_file: Path) -> TrainConfig:
@@ -42,8 +43,8 @@ def _load_config(config_file: Path) -> TrainConfig:
 
 def run(cfg: TrainConfig) -> Any:
     """Train a YOLO model. Returns the YOLO results object."""
-    if not cfg.dataset_yaml.exists():
-        raise FileNotFoundError(f"Dataset YAML not found: {cfg.dataset_yaml}")
+    if not cfg.data.exists():
+        raise FileNotFoundError(f"Dataset YAML not found: {cfg.data}")
 
     model_p = Path(cfg.model)
     if model_p.suffix == ".pt":
@@ -57,15 +58,17 @@ def run(cfg: TrainConfig) -> Any:
 
     logger.info(f"Loading {yolo_model_path}…")
     model_obj = cast(Any, YOLO(yolo_model_path))
-    logger.info(f"Dataset:  {cfg.dataset_yaml}")
+    logger.info(f"Dataset:  {cfg.data}")
     logger.info(f"Output:   {MODELS_DIR / model_name}")
 
     results = model_obj.train(
-        data=str(cfg.dataset_yaml),
-        epochs=cfg.epochs, batch=cfg.batch, imgsz=cfg.imgsz,
-        rect=cfg.rect, device=cfg.device, scale=cfg.scale,
+        data=str(cfg.data),
         project=str(MODELS_DIR), name=model_name,
         pretrained=False, verbose=True,
+        **{k: v for k, v in {
+            "epochs": cfg.epochs, "batch": cfg.batch, "imgsz": cfg.imgsz,
+            "rect": cfg.rect, "device": cfg.device, "scale": cfg.scale,
+        }.items() if v is not None},
     )
 
     logger.success(f"Training complete — {MODELS_DIR / model_name / 'weights' / 'best.pt'}")

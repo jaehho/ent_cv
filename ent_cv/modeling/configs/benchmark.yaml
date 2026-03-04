@@ -1,0 +1,14 @@
+# benchmark config
+# Usage: uv run -m ent_cv.modeling.benchmark
+
+# required
+weights: /mnt/data/ent_cv/models/v1/weights/best.pt
+data: /mnt/data/ent_cv/datasets/combined_new/data_with_val.yaml
+
+# optional (defaults shown)
+device: "0"
+half: false
+int8: false
+verbose: false
+# imgsz:         # defaults to value from args.yaml, then 640
+# format: "engine"  # options: onnx, engine, torchscript

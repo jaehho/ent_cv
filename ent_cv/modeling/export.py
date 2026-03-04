@@ -1,4 +1,5 @@
-"""Export a YOLO model to ONNX."""
+"""Export a YOLO model to various formats."""
+import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -13,16 +14,23 @@ app = typer.Typer(add_completion=False)
 
 @dataclass
 class ExportConfig:
-    # required
     weights: Path
-    half: bool
-    dynamic: bool
-    simplify: bool
-    device: str
-    batch: int
-    # optional (None = not set)
+    format: Optional[str] = None
     imgsz: Optional[int] = None
+    half: Optional[bool] = None
+    int8: Optional[bool] = None
+    dynamic: Optional[bool] = None
+    simplify: Optional[bool] = None
+    optimize: Optional[bool] = None
+    keras: Optional[bool] = None
+    nms: Optional[bool] = None
+    end2end: Optional[bool] = None
     opset: Optional[int] = None
+    workspace: Optional[float] = None
+    data: Optional[str] = None
+    fraction: Optional[float] = None
+    device: Optional[str] = None
+    batch: Optional[int] = None
 
     def __post_init__(self):
         self.weights = Path(self.weights)
@@ -51,7 +59,7 @@ def _read_imgsz(weights: Path) -> Optional[int]:
 
 
 def run(cfg: ExportConfig) -> Path:
-    """Export a YOLO model to ONNX. Returns the path to the exported file."""
+    """Export a YOLO model to the specified format. Returns the path to the exported file."""
     if not cfg.weights.exists():
         raise FileNotFoundError(f"Weights not found: {cfg.weights}")
 
@@ -59,16 +67,15 @@ def run(cfg: ExportConfig) -> Path:
     logger.info(f"Loading weights: {cfg.weights}")
     model = YOLO(str(cfg.weights))
 
-    kwargs: dict = dict(
-        format="onnx", imgsz=imgsz, half=cfg.half, dynamic=cfg.dynamic,
-        simplify=cfg.simplify, device=cfg.device, batch=cfg.batch,
-    )
-    if cfg.opset is not None:
-        kwargs["opset"] = cfg.opset
+    kwargs = {
+        k: v for k, v in dataclasses.asdict(cfg).items()
+        if k != "weights" and v is not None
+    }
+    kwargs["imgsz"] = imgsz  # use resolved value
 
     logger.info(f"Exporting: {kwargs}")
     exported = model.export(**kwargs)
-    export_path = Path(str(exported)) if exported else cfg.weights.with_suffix(".onnx")
+    export_path = Path(str(exported)) if exported else cfg.weights.with_suffix(f".{cfg.format or 'onnx'}")
     logger.success(f"Export complete: {export_path}")
     return export_path
 
@@ -78,7 +85,7 @@ _DEFAULT_CONFIG = Path("ent_cv/modeling/configs/export.yaml")
 
 @app.command()
 def main(config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML config")):
-    """Export a YOLO model to ONNX."""
+    """Export a YOLO model to the specified format."""
     run(_load_config(config_file))
 
 
