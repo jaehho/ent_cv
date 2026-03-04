@@ -9,6 +9,7 @@ import yaml
 from loguru import logger
 from ultralytics import YOLO
 
+from ent_cv.config import PREDICTIONS_DIR
 from ent_cv.utils import notify
 
 app = typer.Typer(add_completion=False)
@@ -29,6 +30,7 @@ class ValConfig:
     verbose: Optional[bool] = None
     imgsz: Optional[int] = None
     batch: Optional[int] = None
+    name: Optional[str] = None
 
     def __post_init__(self):
         self.weights = Path(self.weights)
@@ -42,19 +44,6 @@ def _load_config(config_file: Path) -> ValConfig:
     if unknown := set(d) - set(ValConfig.__dataclass_fields__):
         logger.warning(f"Ignoring unknown config keys: {unknown}")
     return ValConfig(**known)
-
-
-def _read_imgsz(weights: Path) -> Optional[int]:
-    args_yaml = weights.parent.parent / "args.yaml"
-    if not args_yaml.exists():
-        return None
-    try:
-        with args_yaml.open() as f:
-            val = yaml.safe_load(f).get("imgsz")
-        return int(val) if val is not None else None
-    except Exception as exc:
-        logger.warning(f"Could not read {args_yaml}: {exc}")
-        return None
 
 
 _VAL_METRIC_KEYS = [
@@ -72,7 +61,8 @@ def run(cfg: ValConfig) -> Any:
     if not cfg.data.exists():
         raise FileNotFoundError(f"Dataset YAML not found: {cfg.data}")
 
-    imgsz = cfg.imgsz or _read_imgsz(cfg.weights) or 640
+    imgsz = cfg.imgsz
+    derived_name = cfg.name or cfg.weights.parent.parent.name
 
     logger.info(f"Loading weights: {cfg.weights}")
     model = cast(Any, YOLO(str(cfg.weights), task="detect"))
@@ -80,9 +70,10 @@ def run(cfg: ValConfig) -> Any:
     kwargs = {
         k: (str(v) if isinstance(v, Path) else v)
         for k, v in dataclasses.asdict(cfg).items()
-        if k != "weights" and v is not None
+        if k not in ("weights", "name") and v is not None
     }
-    kwargs["imgsz"] = imgsz  # use resolved value
+    kwargs["project"] = str(PREDICTIONS_DIR)
+    kwargs["name"] = derived_name
 
     logger.info(
         f"Validating — split={cfg.split}  conf={cfg.conf}  iou={cfg.iou}  "

@@ -1,13 +1,19 @@
 operation: postprocess
 
 defaults:
-  raw_json: /mnt/data/ent_cv/predictions/20251113_02/detections.json 
-  method: run_length
-  min_duration_sec: 3.0
-  gap_fill_sec: 1.0
-  window_sec: 3.0
-  vote_threshold: 0.5
+  weights: /mnt/data/ent_cv/models/v1/weights/best.pt
+  data: /mnt/data/ent_cv/datasets/combined_new/data_with_val.yaml
 
+  # optional (defaults shown)
+  conf: 0.001
+  iou: 0.6
+  device: "0"
+  half: false
+  split: val       # "val", "test", or "train"
+  save_json: false
+  verbose: true
+  # imgsz:         # defaults to value from args.yaml, then 640
+  # batch:         # defaults to ultralytics default
 
 runs:
   - raw_json: /mnt/data/ent_cv/predictions/20251113_02/detections.json
