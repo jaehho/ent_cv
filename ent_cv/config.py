@@ -30,6 +30,16 @@ MODELS_DIR = DATA_DIR / "models"
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
+# Shared metric key mappings used by train.py, batch.py, val.py, etc.
+TRAIN_METRIC_KEYS: list[tuple[str, str]] = [
+    ("mAP50", "metrics/mAP50(B)"),
+    ("mAP50-95", "metrics/mAP50-95(B)"),
+    ("Precision", "metrics/precision(B)"),
+    ("Recall", "metrics/recall(B)"),
+]
+
+VAL_METRIC_KEYS: list[tuple[str, str]] = TRAIN_METRIC_KEYS  # same keys
+
 # ORDER IS SIGNIFICANT - index corresponds to YOLO class ID.
 LABELS = [
     "Forceps",

@@ -1,10 +1,8 @@
 """Run Ultralytics evolutionary hyperparameter tuning."""
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, cast
 
 import typer
-import yaml
 from loguru import logger
 from ultralytics import YOLO
 
@@ -14,69 +12,75 @@ from ent_cv.utils import notify
 app = typer.Typer(add_completion=False)
 
 
-@dataclass
-class TuneConfig:
-    # required
-    data: Path
-    model: str
-    # optional
-    epochs: Optional[int] = None
-    iterations: Optional[int] = None
-    imgsz: Optional[int] = None
-    batch: Optional[int] = None
-    device: Optional[int] = None
-    optimizer: Optional[str] = None
-
-    def __post_init__(self):
-        self.data = Path(self.data)
-
-
-def _load_config(config_file: Path) -> TuneConfig:
-    with open(config_file) as f:
-        d = yaml.safe_load(f) or {}
-    known = {k: v for k, v in d.items() if k in TuneConfig.__dataclass_fields__}
-    if unknown := set(d) - set(TuneConfig.__dataclass_fields__):
-        logger.warning(f"Ignoring unknown config keys: {unknown}")
-    return TuneConfig(**known)
-
-
-def run(cfg: TuneConfig) -> None:
+def run(
+    data: Path,
+    model: str,
+    epochs: int = 30,
+    iterations: int = 300,
+    imgsz: int = 1024,
+    batch: int = -1,
+    device: str = "0",
+    optimizer: Optional[str] = None,
+) -> None:
     """Run Ultralytics evolutionary hyperparameter tuning."""
-    if not cfg.data.exists():
-        raise FileNotFoundError(f"Dataset YAML not found: {cfg.data}")
+    data = Path(data)
+    if not data.exists():
+        raise FileNotFoundError(f"Dataset YAML not found: {data}")
 
-    model_p = Path(cfg.model)
-    yolo_path = str(model_p) if model_p.suffix == ".pt" else f"{cfg.model}.pt"
+    model_p = Path(model)
+    yolo_path = str(model_p) if model_p.suffix == ".pt" else f"{model}.pt"
     tune_dir = MODELS_DIR / "tune"
     tune_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Loading {yolo_path}…")
     model_obj = cast(Any, YOLO(yolo_path))
-    logger.info(f"Dataset: {cfg.data} | Iterations: {cfg.iterations} | Epochs/run: {cfg.epochs}")
+    logger.info(f"Dataset: {data} | Iterations: {iterations} | Epochs/run: {epochs}")
 
-    model_obj.tune(
-        data=str(cfg.data),
-        project=str(tune_dir), name=cfg.model,
-        plots=True, save=True, val=True,
-        **{k: v for k, v in {
-            "epochs": cfg.epochs, "iterations": cfg.iterations,
-            "imgsz": cfg.imgsz, "batch": cfg.batch,
-            "device": cfg.device, "optimizer": cfg.optimizer,
-        }.items() if v is not None},
-    )
+    kwargs: dict[str, Any] = {
+        "data": str(data),
+        "project": str(tune_dir),
+        "name": model,
+        "plots": True,
+        "save": True,
+        "val": True,
+        "epochs": epochs,
+        "iterations": iterations,
+        "imgsz": imgsz,
+        "batch": batch,
+        "device": device,
+    }
+    if optimizer is not None:
+        kwargs["optimizer"] = optimizer
 
-    best = tune_dir / cfg.model / "best_hyperparameters.yaml"
+    model_obj.tune(**kwargs)
+
+    best = tune_dir / model / "best_hyperparameters.yaml"
     logger.success(f"Tuning complete — best: {best}")
-
-
-_DEFAULT_CONFIG = Path("ent_cv/modeling/configs/tune.yaml")
 
 
 @app.command()
 @notify("Tuning")
-def main(config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML config")):
+def main(
+    data: Path = typer.Option(..., help="Path to dataset YAML"),
+    model: str = typer.Option(..., help="Model name or .pt path"),
+    epochs: int = typer.Option(30, help="Epochs per tuning iteration"),
+    iterations: int = typer.Option(300, help="Number of tuning iterations"),
+    imgsz: int = typer.Option(1024, help="Image size"),
+    batch: int = typer.Option(-1, help="Batch size (-1 = auto)"),
+    device: str = typer.Option("0", help="Device (e.g. '0', 'cpu')"),
+    optimizer: Optional[str] = typer.Option(None, help="Optimizer override"),
+) -> None:
     """Run Ultralytics evolutionary hyperparameter tuning."""
-    return run(_load_config(config_file))
+    run(
+        data=data,
+        model=model,
+        epochs=epochs,
+        iterations=iterations,
+        imgsz=imgsz,
+        batch=batch,
+        device=device,
+        optimizer=optimizer,
+    )
 
 
 if __name__ == "__main__":

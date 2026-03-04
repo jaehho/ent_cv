@@ -90,6 +90,25 @@ export default defineConfig({
           return fps;
         }
 
+        // frame-count cache: raw video path → integer frame count
+        const frameCountCacheMap = new Map();
+        function probeVideoFrameCount(videoPath) {
+          if (frameCountCacheMap.has(videoPath)) return frameCountCacheMap.get(videoPath);
+          const probe = spawnSync("ffprobe", [
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-count_packets",
+            "-show_entries", "stream=nb_read_packets",
+            "-of", "csv=p=0",
+            videoPath,
+          ]);
+          const raw = probe.stdout?.toString().trim();
+          if (!raw) throw new Error(`ffprobe returned no frame count for ${videoPath}`);
+          const count = parseInt(raw, 10);
+          frameCountCacheMap.set(videoPath, count);
+          return count;
+        }
+
         // GET /data/predictions/:case/... → serve detections.json (enriched) and JPEG frames
         server.middlewares.use("/data/predictions", (req, res, next) => {
           if (req.method !== "GET") return next();
@@ -105,33 +124,93 @@ export default defineConfig({
               createReadStream(filePath).pipe(res);
               return;
             }
-            // For detections.json: enrich the flat results array with fps + derived metadata
+            // For detections.json: enrich with fps + derived metadata
             if (safePath.endsWith("detections.json")) {
-              const results = JSON.parse(readFileSync(filePath, "utf-8"));
-              // Derive ordered class list from detection data
-              const classMap = new Map();
-              for (const r of results) {
-                for (const d of r.detections) {
-                  if (!classMap.has(d.class_id)) classMap.set(d.class_id, d.class_name);
-                }
-              }
-              const classes = [...classMap.entries()]
-                .sort((a, b) => a[0] - b[0])
-                .map(([, name]) => name);
-              // Probe fps from the first raw video in this case
               const caseName = safePath.split("/")[0];
               const rawCaseDir = join(RAW_DIR, caseName);
               const mp4s = readdirSync(rawCaseDir).filter(f => f.toLowerCase().endsWith(".mp4")).sort();
               if (mp4s.length === 0) throw new Error(`No raw .mp4 files found for case ${caseName}`);
-              const fps = probeVideoFps(join(rawCaseDir, mp4s[0]));
-              const enriched = { fps, total_frames: results.length, classes, results };
+
+              // Try to read fps + total_frames from metadata.json first
+              let fps, total_frames;
+              try {
+                const meta = JSON.parse(readFileSync(join(PREDICTIONS_DIR, caseName, "metadata.json"), "utf-8"));
+                fps = meta.fps ?? null;
+                total_frames = meta.total_frames ?? null;
+              } catch { /* no metadata */ }
+              if (!fps) fps = probeVideoFps(join(rawCaseDir, mp4s[0]));
+
+              const rawDetections = JSON.parse(readFileSync(filePath, "utf-8"));
+
+              // Detect format: flat array {frame, class, name, confidence, box}
+              //                vs grouped  [{frame, source, detections:[{class_id,…}]}]
+              const isFlat = rawDetections.length > 0 && !Array.isArray(rawDetections[0]?.detections);
+
+              // Derive ordered class list
+              const classMap = new Map();
+              if (isFlat) {
+                for (const d of rawDetections) {
+                  if (!classMap.has(d.class)) classMap.set(d.class, d.name);
+                }
+              } else {
+                for (const r of rawDetections) {
+                  for (const d of r.detections) {
+                    if (!classMap.has(d.class_id)) classMap.set(d.class_id, d.class_name);
+                  }
+                }
+              }
+              const classes = [...classMap.entries()].sort((a, b) => a[0] - b[0]).map(([, name]) => name);
+
+              let results;
+              if (isFlat) {
+                // Build per-part cumulative frame-count boundaries for source assignment
+                const partBoundaries = []; // [{path, startFrame, endFrame}]
+                let cumulative = 0;
+                for (const mp4 of mp4s) {
+                  const mp4Path = join(rawCaseDir, mp4);
+                  const count = probeVideoFrameCount(mp4Path);
+                  partBoundaries.push({ path: mp4Path, startFrame: cumulative, endFrame: cumulative + count - 1 });
+                  cumulative += count;
+                }
+                function sourceForFrame(frame) {
+                  for (const p of partBoundaries) {
+                    if (frame <= p.endFrame) return p.path;
+                  }
+                  return partBoundaries[partBoundaries.length - 1].path;
+                }
+
+                // Group flat detections by frame
+                const frameGroups = new Map();
+                for (const d of rawDetections) {
+                  if (!frameGroups.has(d.frame)) frameGroups.set(d.frame, []);
+                  frameGroups.get(d.frame).push({
+                    class_id: d.class,
+                    class_name: d.name,
+                    confidence: d.confidence,
+                    box: d.box,
+                  });
+                }
+                results = [...frameGroups.entries()]
+                  .sort((a, b) => a[0] - b[0])
+                  .map(([frame, detections]) => ({
+                    frame,
+                    source: sourceForFrame(frame),
+                    detections,
+                  }));
+              } else {
+                results = rawDetections;
+              }
+
+              if (!total_frames) total_frames = results.length;
+
+              const enriched = { fps, total_frames, classes, results };
               res.setHeader("Content-Type", "application/json");
               res.end(JSON.stringify(enriched));
               return;
             }
             res.setHeader("Content-Type", "application/json");
             createReadStream(filePath).pipe(res);
-          } catch { next(); }
+          } catch (err) { console.error("[predictions-api]", err); next(); }
         });
       },
     },

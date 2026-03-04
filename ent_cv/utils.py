@@ -1,5 +1,6 @@
 import smtplib
 import socket
+import sys
 import time
 import traceback
 from datetime import datetime, timedelta
@@ -126,6 +127,7 @@ def notify(
             t0         = time.monotonic()
             start_str  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             sys_info   = _system_info()
+            cmd_str    = " ".join(sys.argv)
 
             try:
                 result = func(*args, **kwargs)
@@ -142,6 +144,9 @@ def notify(
                     "",
                     f"Started:  {start_str}",
                     f"Duration: {duration_str}",
+                    "",
+                    "── Command ──────────────────────────────────",
+                    cmd_str,
                     "",
                     "── System ───────────────────────────────────",
                     sys_info,
@@ -173,6 +178,9 @@ def notify(
                     f"{job_name} failed after {duration_str}.",
                     "",
                     f"Started:  {start_str}",
+                    "",
+                    "── Command ──────────────────────────────────",
+                    cmd_str,
                     "",
                     "── System ───────────────────────────────────",
                     sys_info,

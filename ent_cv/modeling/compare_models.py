@@ -7,7 +7,6 @@ Usage:
 
 import csv
 import shutil
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -20,31 +19,6 @@ from rich.table import Table
 
 app = typer.Typer()
 console = Console()
-
-
-@dataclass
-class CompareConfig:
-    models_dir: Path
-    sort_by: str
-    verbose: bool
-    weights_suffix: str
-    delete: int
-    top: Optional[int] = None
-
-    def __post_init__(self):
-        self.models_dir = Path(self.models_dir)
-
-
-def _load_config(config_file: Path) -> CompareConfig:
-    with open(config_file) as f:
-        d = yaml.safe_load(f) or {}
-    known = {k: v for k, v in d.items() if k in CompareConfig.__dataclass_fields__}
-    if unknown := set(d) - set(CompareConfig.__dataclass_fields__):
-        logger.warning(f"Ignoring unknown config keys: {unknown}")
-    return CompareConfig(**known)
-
-
-_DEFAULT_CONFIG = Path("ent_cv/modeling/configs/compare_models.yaml")
 
 SORT_KEYS = {
     "map50":     "map50",
@@ -165,7 +139,7 @@ def _collect_model_info(model_dir: Path) -> Optional[dict]:
 # Core logic
 # ---------------------------------------------------------------------------
 
-def _run(models_dir: Path, sort_by: str) -> list[dict]:
+def run(models_dir: Path, sort_by: str) -> list[dict]:
     """Scan models_dir, collect info, and return all models sorted best→worst."""
     if not models_dir.exists():
         raise FileNotFoundError(f"Models directory not found: {models_dir}")
@@ -400,28 +374,35 @@ def _prompt_and_delete(all_ranked: list[dict], default_n: int = 0) -> None:
 # ---------------------------------------------------------------------------
 
 @app.command()
-def main(config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML config")):
+def main(
+    models_dir: Path = typer.Option("models", help="Directory containing trained model runs"),
+    sort_by: str = typer.Option("map50", help="Metric to rank by: map50 | map50-95 | precision | recall"),
+    verbose: bool = typer.Option(False, help="Show detailed training config table"),
+    weights_suffix: str = typer.Option("best", help="Weights file stem (best or last)"),
+    delete: int = typer.Option(0, help="Default cleanup suggestion (0=keep all, +N=keep top N, -N=delete N worst)"),
+    top: Optional[int] = typer.Option(None, help="Only display top N models"),
+) -> None:
     """Scan MODELS_DIR, compare all trained models, and print a ranked leaderboard."""
-    cfg = _load_config(config_file)
-    logger.info(f"Scanning {cfg.models_dir} …")
-    ranked = _run(models_dir=cfg.models_dir, sort_by=cfg.sort_by)
+    models_dir = Path(models_dir)
+    logger.info(f"Scanning {models_dir} …")
+    ranked = run(models_dir=models_dir, sort_by=sort_by)
     logger.info(f"Found {len(ranked)} models")
     console.print()
 
-    display = ranked[:cfg.top] if cfg.top else ranked
-    console.print(_make_ranking_table(display, sort_by=cfg.sort_by))
+    display = ranked[:top] if top else ranked
+    console.print(_make_ranking_table(display, sort_by=sort_by))
     console.print()
 
-    if cfg.verbose:
+    if verbose:
         console.print(_make_detail_table(display))
         console.print()
 
     _print_summary(ranked)
 
     console.print("[bold cyan]Recommended weights:[/bold cyan]")
-    console.print(f"  [yellow]{ranked[0]['path'] / 'weights' / (cfg.weights_suffix + '.pt')}[/yellow]")
+    console.print(f"  [yellow]{ranked[0]['path'] / 'weights' / (weights_suffix + '.pt')}[/yellow]")
 
-    _prompt_and_delete(ranked, default_n=cfg.delete)
+    _prompt_and_delete(ranked, default_n=delete)
 
 
 if __name__ == "__main__":

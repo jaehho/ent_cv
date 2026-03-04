@@ -88,3 +88,26 @@ cloudflared-route: ## Show cloudflared tunnel route
 	echo "Tunnel route information for 'mililab':"
 	echo "-------------------------------------"
 	cloudflared tunnel route ip mililab
+
+## Modeling
+# Common paths — override on the command line: make train DATA=…
+WEIGHTS ?= /mnt/data/ent_cv/models/v1/weights/best.pt
+DATA    ?= /mnt/data/ent_cv/datasets/combined_new/data_with_val.yaml
+SOURCE  ?= /mnt/data/ent_cv/raw/test
+PREDICTIONS ?= /mnt/data/ent_cv/predictions/test
+
+.PHONY: train predict val compare
+train: ## Train a YOLO model  (override DATA=, EPOCHS=200, …)
+	uv run ent-cv train --data $(DATA) --model $(or $(MODEL),yolo11x.pt)
+
+predict: ## Run prediction  (set SOURCE=)
+	uv run ent-cv predict --source $(SOURCE) --weights $(WEIGHTS) --verbose
+
+val: ## Validate a model
+	uv run ent-cv val --weights $(WEIGHTS) --data $(DATA)
+
+compare: ## Compare trained models in MODELS_DIR
+	uv run ent-cv compare --models-dir /mnt/data/ent_cv/models --verbose
+
+postprocess: ## Run post-processing on predictions (set SOURCE=)
+	uv run ent-cv postprocess --raw-json $(PREDICTIONS)/detections.json

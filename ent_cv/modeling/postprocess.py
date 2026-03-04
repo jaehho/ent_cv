@@ -27,14 +27,13 @@ Other post-processing directions worth exploring (not yet implemented):
 from __future__ import annotations
 
 import json
-from copy import deepcopy
-from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import polars as pl
 import typer
-import yaml
 from loguru import logger
 
 app = typer.Typer(add_completion=False)
@@ -44,8 +43,20 @@ METHODS = ("run_length", "majority_vote", "gaussian")
 
 # ── I/O ───────────────────────────────────────────────────────────────────
 
-def load_detections(path: Path) -> dict:
-    with open(path) as f:
+def load_detections(path: Path) -> pl.DataFrame:
+    """Load a Polars-format detections.json."""
+    return pl.read_json(path)
+
+
+def load_metadata(detections_path: Path) -> dict:
+    """Load the sidecar metadata.json next to detections.json."""
+    meta_path = detections_path.parent / "metadata.json"
+    if not meta_path.exists():
+        raise FileNotFoundError(
+            f"Sidecar metadata.json not found next to {detections_path}. "
+            "Re-run predict to generate it."
+        )
+    with open(meta_path) as f:
         return json.load(f)
 
 
@@ -57,24 +68,24 @@ def save_json(data: object, path: Path) -> None:
 
 # ── Presence matrix ───────────────────────────────────────────────────────
 
-def build_presence_matrix(data: dict) -> np.ndarray:
+def build_presence_matrix(
+    df: pl.DataFrame, total_frames: int, classes: list[str],
+) -> np.ndarray:
     """Return bool array of shape (total_frames, num_classes).
 
-    Only frames listed in *results* are marked; any frame absent from the JSON
-    (e.g. a gap in sparse output) remains False.
+    Only frames present in *df* are marked; any frame absent remains False.
     """
-    T = data["total_frames"]
-    C = len(data["classes"])
-    cls_idx = {name: i for i, name in enumerate(data["classes"])}
+    T = total_frames
+    C = len(classes)
+    cls_idx = {name: i for i, name in enumerate(classes)}
     M = np.zeros((T, C), dtype=bool)
-    for r in data["results"]:
-        frame = r["frame"]
+    for row in df.iter_rows(named=True):
+        frame = row["frame"]
         if frame >= T:
             continue
-        for d in r["detections"]:
-            ci = cls_idx.get(d["class_name"], -1)
-            if ci >= 0:
-                M[frame, ci] = True
+        ci = cls_idx.get(row["name"], -1)
+        if ci >= 0:
+            M[frame, ci] = True
     return M
 
 
@@ -188,27 +199,31 @@ def filter_gaussian(
     return out
 
 
-# ── Apply filter to JSON ──────────────────────────────────────────────────
+# ── Apply filter to DataFrame ─────────────────────────────────────────────
 
-def apply_filter(data: dict, M_filtered: np.ndarray) -> dict:
-    """Return a deep copy of *data* with detections removed where M_filtered is False."""
-    cls_idx = {name: i for i, name in enumerate(data["classes"])}
-    out = deepcopy(data)
-    for r in out["results"]:
-        frame = r["frame"]
-        if frame >= M_filtered.shape[0]:
-            continue
-        row = M_filtered[frame]
-        r["detections"] = [
-            d for d in r["detections"]
-            if row[cls_idx.get(d["class_name"], -1)]
-        ]
-    return out
+def apply_filter(
+    df: pl.DataFrame, M_filtered: np.ndarray, classes: list[str],
+) -> pl.DataFrame:
+    """Return a filtered copy of *df*, dropping rows where M_filtered is False."""
+    cls_idx = {name: i for i, name in enumerate(classes)}
+
+    keep_mask = []
+    for row in df.iter_rows(named=True):
+        frame = row["frame"]
+        ci = cls_idx.get(row["name"], -1)
+        if frame >= M_filtered.shape[0] or ci < 0:
+            keep_mask.append(False)
+        else:
+            keep_mask.append(bool(M_filtered[frame, ci]))
+
+    return df.filter(pl.Series(keep_mask))
 
 
 # ── Segment extraction ────────────────────────────────────────────────────
 
-def extract_segments(data: dict) -> list[dict]:
+def extract_segments(
+    df: pl.DataFrame, total_frames: int, classes: list[str], fps: float,
+) -> list[dict]:
     """Convert frame-level detections into a structured segment timeline.
 
     A *segment* is a maximal continuous span of frames where a particular class
@@ -218,36 +233,32 @@ def extract_segments(data: dict) -> list[dict]:
     Returns a list sorted by start_frame, suitable for downstream analysis such
     as "forceps used from 00:12 to 01:45 (avg conf 0.82)".
     """
-    fps = data.get("fps") or data.get("source_fps") or 30.0
-    T = data["total_frames"]
-    C = len(data["classes"])
-    cls_idx = {name: i for i, name in enumerate(data["classes"])}
+    T = total_frames
+    C = len(classes)
+    cls_idx = {name: i for i, name in enumerate(classes)}
 
     M = np.zeros((T, C), dtype=bool)
-    # conf_sum / conf_max / conf_count per (frame, class)
     conf_sum = np.zeros((T, C), dtype=np.float64)
     conf_max = np.zeros((T, C), dtype=np.float64)
     conf_cnt = np.zeros((T, C), dtype=np.int32)
 
-    for r in data["results"]:
-        frame = r["frame"]
+    for row in df.iter_rows(named=True):
+        frame = row["frame"]
         if frame >= T:
             continue
-        for d in r["detections"]:
-            ci = cls_idx.get(d["class_name"], -1)
-            if ci < 0:
-                continue
-            M[frame, ci] = True
-            conf = d["confidence"]
-            conf_sum[frame, ci] += conf
-            conf_cnt[frame, ci] += 1
-            if conf > conf_max[frame, ci]:
-                conf_max[frame, ci] = conf
+        ci = cls_idx.get(row["name"], -1)
+        if ci < 0:
+            continue
+        M[frame, ci] = True
+        conf = row["confidence"]
+        conf_sum[frame, ci] += conf
+        conf_cnt[frame, ci] += 1
+        if conf > conf_max[frame, ci]:
+            conf_max[frame, ci] = conf
 
     segments: list[dict] = []
-    for c, cls_name in enumerate(data["classes"]):
+    for c, cls_name in enumerate(classes):
         for start, end in _find_runs(M[:, c]):
-            # Aggregate confidence over the segment
             total_cnt = int(conf_cnt[start : end + 1, c].sum())
             total_sum = float(conf_sum[start : end + 1, c].sum())
             seg_max = float(conf_max[start : end + 1, c].max())
@@ -269,20 +280,30 @@ def extract_segments(data: dict) -> list[dict]:
 
 # ── Summary recomputation ─────────────────────────────────────────────────
 
-def compute_summary(data: dict) -> dict:
-    fps = data.get("fps") or data.get("source_fps") or 30.0
-    T = data["total_frames"]
+def compute_summary(
+    df: pl.DataFrame, total_frames: int, fps: float,
+) -> dict:
     sec_per_frame = 1.0 / fps
+    T = total_frames
 
     class_frame_counts: dict[str, int] = {}
     label_changes = 0
     prev: set[str] = set()
 
-    for r in data["results"]:
-        present = {d["class_name"] for d in r["detections"]}
+    # Group detections by frame to iterate in order
+    if df.is_empty():
+        frame_groups: dict[int, set[str]] = {}
+    else:
+        frame_groups = {}
+        for row in df.iter_rows(named=True):
+            frame = row["frame"]
+            frame_groups.setdefault(frame, set()).add(row["name"])
+
+    for frame_idx in range(T):
+        present = frame_groups.get(frame_idx, set())
         for cls in present:
             class_frame_counts[cls] = class_frame_counts.get(cls, 0) + 1
-        if r["frame"] > 0 and present != prev:
+        if frame_idx > 0 and present != prev:
             label_changes += 1
         prev = present
 
@@ -315,46 +336,48 @@ def postprocess(
 ) -> dict:
     """Filter temporal noise from YOLO detections and write filtered outputs.
 
-    Reads ``raw_json`` (detections.json), applies the chosen temporal filter,
+    Reads ``raw_json`` (detections.json in Polars JSON format) plus a sidecar
+    ``metadata.json`` in the same directory, applies the chosen temporal filter,
     and writes three files into *output_dir* (default: same directory):
 
-      filtered_detections.json  — full frame-level detections after filtering
+      filtered_detections.json  — filtered detections (standard JSON)
       filtered_summary.json     — recomputed summary statistics
       filtered_segments.json    — continuous class-usage segments with confidence
-
-    The raw files are untouched so you can re-run with different parameters and
-    compare.  ``segments.json`` is also written from the raw data if it does not
-    already exist.
 
     Args:
         raw_json:         Path to raw ``detections.json``.
         output_dir:       Where to write filtered outputs (default: raw_json parent).
         method:           ``"run_length"`` | ``"majority_vote"`` | ``"gaussian"``.
-        min_duration_sec: [run_length] A class must be continuously present for
-                          at least this many seconds to survive the filter.
-                          Default 3 s (roughly the fastest plausible instrument
-                          change in the OR).  Make this smaller if short genuine
-                          uses are expected.
-        gap_fill_sec:     [run_length] Gaps shorter than this are filled *before*
-                          the min_duration check, so two runs separated by a brief
-                          dropout are treated as one.  Set to 0 to disable.
+        min_duration_sec: [run_length] Min duration in seconds.
+        gap_fill_sec:     [run_length] Gaps shorter than this are filled first.
         window_sec:       [majority_vote / gaussian] Full window width in seconds.
-        vote_threshold:   [majority_vote / gaussian] Fraction of the window that
-                          must contain the class for it to be kept (default 0.5).
+        vote_threshold:   [majority_vote / gaussian] Fraction threshold (default 0.5).
 
     Returns:
         dict: Per-class change stats::
 
             {class_name: {raw_frames, filtered_frames, dropped_frames}}
     """
+    raw_json = Path(raw_json)
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS!r}, got {method!r}")
 
-    data = load_detections(raw_json)
+    df = load_detections(raw_json)
+    meta = load_metadata(raw_json)
     output_dir = Path(output_dir) if output_dir else raw_json.parent
-    fps = data.get("fps") or data.get("source_fps") or 30.0
 
-    M = build_presence_matrix(data)
+    total_frames: int = meta["total_frames"]
+    raw_fps = meta.get("fps")
+    if raw_fps is None:
+        raise ValueError(
+            "metadata.json has no 'fps' field — re-run predict on a video source."
+        )
+    fps: float = float(Fraction(raw_fps))
+
+    # Derive classes from the data
+    classes = sorted(df["name"].unique().to_list()) if not df.is_empty() else []
+
+    M = build_presence_matrix(df, total_frames, classes)
 
     if method == "run_length":
         min_frames = max(1, round(min_duration_sec * fps))
@@ -387,29 +410,45 @@ def postprocess(
             "vote_threshold": vote_threshold,
         }
 
-    filtered_data = apply_filter(data, M_filtered)
-    filtered_data["_filter"] = {"method": method, "source": str(raw_json), **params}
+    filtered_df = apply_filter(df, M_filtered, classes)
 
-    save_json(filtered_data, output_dir / "filtered_detections.json")
-    save_json(compute_summary(filtered_data), output_dir / "filtered_summary.json")
-    save_json({"segments": extract_segments(filtered_data)}, output_dir / "filtered_segments.json")
+    # Write filtered outputs as standard JSON for human readability
+    filter_info = {"method": method, "source": str(raw_json), **params}
+
+    # Convert filtered DataFrame to list-of-dicts JSON
+    filtered_records = filtered_df.to_dicts() if not filtered_df.is_empty() else []
+    save_json(
+        {"_filter": filter_info, "detections": filtered_records},
+        output_dir / "filtered_detections.json",
+    )
+    save_json(
+        compute_summary(filtered_df, total_frames, fps),
+        output_dir / "filtered_summary.json",
+    )
+    save_json(
+        {"segments": extract_segments(filtered_df, total_frames, classes, fps)},
+        output_dir / "filtered_segments.json",
+    )
 
     # Also emit raw segments the first time (cheap, useful reference)
     raw_segs_path = raw_json.parent / "segments.json"
     if not raw_segs_path.exists():
-        save_json({"segments": extract_segments(data)}, raw_segs_path)
+        save_json(
+            {"segments": extract_segments(df, total_frames, classes, fps)},
+            raw_segs_path,
+        )
         logger.info(f"Raw segments written to {raw_segs_path}")
 
     # Change stats
     raw_counts = M.sum(axis=0).astype(int)
     filt_counts = M_filtered.sum(axis=0).astype(int)
     changes = {
-        data["classes"][i]: {
+        classes[i]: {
             "raw_frames": int(raw_counts[i]),
             "filtered_frames": int(filt_counts[i]),
             "dropped_frames": int(raw_counts[i] - filt_counts[i]),
         }
-        for i in range(len(data["classes"]))
+        for i in range(len(classes))
         if raw_counts[i] > 0
     }
 
@@ -423,58 +462,27 @@ def postprocess(
     return changes
 
 
-# ── Config dataclass ──────────────────────────────────────────────────────
-
-@dataclass
-class PostprocessConfig:
-    raw_json: Path
-    method: str
-    min_duration_sec: float
-    gap_fill_sec: float
-    window_sec: float
-    vote_threshold: float
-    output_dir: Optional[Path] = None
-
-    def __post_init__(self):
-        self.raw_json = Path(self.raw_json)
-        if self.output_dir is not None:
-            self.output_dir = Path(self.output_dir)
-
-
-def _load_config(config_file: Path) -> PostprocessConfig:
-    with open(config_file) as f:
-        d = yaml.safe_load(f) or {}
-    known = {k: v for k, v in d.items() if k in PostprocessConfig.__dataclass_fields__}
-    if unknown := set(d) - set(PostprocessConfig.__dataclass_fields__):
-        logger.warning(f"Ignoring unknown config keys: {unknown}")
-    return PostprocessConfig(**known)
-
-
 # ── CLI ───────────────────────────────────────────────────────────────────
-
-_DEFAULT_CONFIG = Path("ent_cv/modeling/configs/postprocess.yaml")
-
 
 @app.command()
 def main(
-    config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML config"),
+    raw_json: Path = typer.Option(..., help="Path to raw detections.json"),
+    method: str = typer.Option("run_length", help="Filter method: run_length | majority_vote | gaussian"),
+    min_duration_sec: float = typer.Option(1.0, help="[run_length] Min duration in seconds"),
+    gap_fill_sec: float = typer.Option(1.0, help="[run_length] Fill gaps shorter than this (sec)"),
+    window_sec: float = typer.Option(3.0, help="[majority_vote/gaussian] Window width in seconds"),
+    vote_threshold: float = typer.Option(0.5, help="[majority_vote/gaussian] Vote fraction threshold"),
+    output_dir: Optional[Path] = typer.Option(None, help="Output directory (default: same as raw_json)"),
 ) -> None:
-    """Post-process YOLO temporal detections to remove classification noise.
-
-    Reads a YAML config (default: ent_cv/modeling/configs/postprocess.yaml) and
-    writes filtered_detections.json, filtered_summary.json, and
-    filtered_segments.json alongside the raw detections.json.  Raw files are
-    never modified.
-    """
-    cfg = _load_config(config_file)
+    """Post-process YOLO temporal detections to remove classification noise."""
     postprocess(
-        raw_json=cfg.raw_json,
-        output_dir=cfg.output_dir,
-        method=cfg.method,
-        min_duration_sec=cfg.min_duration_sec,
-        gap_fill_sec=cfg.gap_fill_sec,
-        window_sec=cfg.window_sec,
-        vote_threshold=cfg.vote_threshold,
+        raw_json=raw_json,
+        output_dir=output_dir,
+        method=method,
+        min_duration_sec=min_duration_sec,
+        gap_fill_sec=gap_fill_sec,
+        window_sec=window_sec,
+        vote_threshold=vote_threshold,
     )
 
 

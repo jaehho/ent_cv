@@ -1,12 +1,12 @@
 """Run YOLO inference on a single source."""
 import json
 import shutil
-from dataclasses import dataclass
+import subprocess
 from pathlib import Path
 from typing import Optional
 
+import polars as pl
 import typer
-import yaml
 from loguru import logger
 from ultralytics import YOLO
 
@@ -15,130 +15,143 @@ from ent_cv.utils import notify
 
 app = typer.Typer(add_completion=False)
 
-
-@dataclass
-class PredictConfig:
-    # required
-    source: Path
-    weights: Path
-    # optional
-    conf: Optional[float] = None
-    iou: Optional[float] = None
-    imgsz: Optional[int] = None
-    device: Optional[str] = None
-    overwrite: Optional[bool] = None
-    save: Optional[bool] = None
-    save_conf: Optional[bool] = None
-    save_txt: Optional[bool] = None
-    save_json: Optional[bool] = None
-    save_frames: Optional[bool] = None
-    verbose: Optional[bool] = None
-    output_dir: Optional[Path] = None
-    suffix: Optional[str] = None
-
-    def __post_init__(self):
-        self.source = Path(self.source)
-        self.weights = Path(self.weights)
-        if self.output_dir is not None:
-            self.output_dir = Path(self.output_dir)
+_VIDEO_SUFFIXES = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v", ".mpeg", ".mpg", ".ts", ".flv"}
+_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
 
 
-def _load_config(config_file: Path) -> PredictConfig:
-    with open(config_file) as f:
-        d = yaml.safe_load(f) or {}
-    known = {k: v for k, v in d.items() if k in PredictConfig.__dataclass_fields__}
-    if unknown := set(d) - set(PredictConfig.__dataclass_fields__):
-        logger.warning(f"Ignoring unknown config keys: {unknown}")
-    return PredictConfig(**known)
+def _get_fps(source: Path) -> Optional[str]:
+    """Return FPS as a native fraction string (e.g. '30000/1001') via ffprobe.
+    Returns None for images or if the source contains no video stream."""
+    def _fps_from_file(path: Path) -> Optional[str]:
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe", "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=r_frame_rate",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(path),
+                ],
+                capture_output=True, text=True, check=True,
+            )
+            value = result.stdout.strip()
+            return value if value else None
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return None
+
+    if source.is_file():
+        if source.suffix.lower() in _VIDEO_SUFFIXES:
+            return _fps_from_file(source)
+        return None  # single image / frame
+    if source.is_dir():
+        for candidate in sorted(source.iterdir()):
+            if candidate.is_file() and candidate.suffix.lower() in _VIDEO_SUFFIXES:
+                return _fps_from_file(candidate)
+        return None  # directory of images
+    return None
 
 
-def run(cfg: PredictConfig) -> Optional[tuple[Path, int]]:
+def run(
+    source: Path,
+    weights: Path,
+    conf: float = 0.647,
+    iou: float = 0.7,
+    imgsz: int = 1024,
+    device: str = "0",
+    overwrite: bool = False,
+    save: bool = True,
+    save_conf: bool = True,
+    save_txt: bool = True,
+    save_json: bool = True,
+    save_frames: bool = True,
+    verbose: bool = False,
+    output_dir: Optional[Path] = None,
+    suffix: Optional[str] = None,
+) -> Optional[tuple[Path, int]]:
     """Run YOLO inference. Returns (output_dir, frame_count) or None if skipped."""
-    weights = cfg.weights
-
+    source, weights = Path(source), Path(weights)
     if not weights.exists():
         raise FileNotFoundError(f"Weights not found: {weights}")
-    if not cfg.source.exists():
-        raise FileNotFoundError(f"Source not found: {cfg.source}")
+    if not source.exists():
+        raise FileNotFoundError(f"Source not found: {source}")
 
-    derived_name = cfg.source.stem + (f"_{cfg.suffix}" if cfg.suffix else "")
-    output_dir = cfg.output_dir or (PREDICTIONS_DIR / derived_name)
+    derived_name = source.stem + (f"_{suffix}" if suffix else "")
+    out_dir = output_dir or (PREDICTIONS_DIR / derived_name)
 
-    if output_dir.exists() and any(output_dir.iterdir()):
-        if cfg.overwrite:
-            shutil.rmtree(output_dir)
-            logger.info(f"Removed existing output: {output_dir}")
+    if out_dir.exists() and any(out_dir.iterdir()):
+        if overwrite:
+            shutil.rmtree(out_dir)
+            logger.info(f"Removed existing output: {out_dir}")
         else:
-            print(f"\nOutput already exists: {output_dir}")
+            print(f"\nOutput already exists: {out_dir}")
             print("  [d] Delete and overwrite")
             print("  [s] Skip")
             print("  [a] Abort")
             while True:
                 choice = input("Choice [d/s/a]: ").strip().lower()
                 if choice == "d":
-                    shutil.rmtree(output_dir)
-                    logger.info(f"Removed existing output: {output_dir}")
+                    shutil.rmtree(out_dir)
+                    logger.info(f"Removed existing output: {out_dir}")
                     break
                 elif choice == "s":
-                    logger.info(f"Skipping — output already exists: {output_dir}")
+                    logger.info(f"Skipping — output already exists: {out_dir}")
                     return None
                 elif choice == "a":
                     raise SystemExit("Aborted by user.")
                 else:
                     print("  Please enter d, s, or a.")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Loading weights: {weights}")
     model = YOLO(str(weights), task="detect")
 
-    logger.info(f"Source: {cfg.source}  conf={cfg.conf}  iou={cfg.iou}")
-    predict_kwargs = {
-        k: v for k, v in {
-            "conf": cfg.conf, "iou": cfg.iou, "imgsz": cfg.imgsz,
-            "device": cfg.device, "save": cfg.save, "save_conf": cfg.save_conf,
-            "save_txt": cfg.save_txt, "save_frames": cfg.save_frames,
-            "verbose": cfg.verbose,
-        }.items() if v is not None
-    }
+    logger.info(f"Source: {source}  conf={conf}  iou={iou}")
     results_gen = model.predict(
-        source=str(cfg.source),
-        project=str(PREDICTIONS_DIR), name=derived_name,
-        exist_ok=True, stream=True,
-        **predict_kwargs,
+        source=str(source),
+        project=str(PREDICTIONS_DIR),
+        name=derived_name,
+        exist_ok=True,
+        stream=True,
+        conf=conf,
+        iou=iou,
+        imgsz=imgsz,
+        device=device,
+        save=save,
+        save_conf=save_conf,
+        save_txt=save_txt,
+        save_frames=save_frames,
+        verbose=verbose,
     )
 
-    all_frames = []
+    frames_list: list[pl.DataFrame] = []
     n = 0
 
     for result in results_gen:
-        detections = []
+        df = result.to_df()
+        if not df.is_empty():
+            df = df.with_columns(pl.lit(n).alias("frame"))
+            frames_list.append(df)
 
-        if result.boxes is not None:
-            for box in result.boxes:
-                cls_id = int(box.cls.item())
-                cls_name = model.names[cls_id]
-                detections.append({
-                    "class_id": cls_id,
-                    "class_name": cls_name,
-                    "confidence": round(float(box.conf.item()), 4),
-                    "bbox": [round(float(x), 2) for x in box.xyxy[0].tolist()],
-                })
-
-        all_frames.append({
-            "frame": n,
-            "source": str(result.path),
-            "detections": detections,
-        })
         n += 1
 
-    if cfg.save_json and all_frames:
-        with open(output_dir / "detections.json", "w") as fh:
-            json.dump(all_frames, fh, indent=2)
+    if save_json and frames_list:
+        all_df = pl.concat(frames_list)
+        all_df.write_json(out_dir / "detections.json")
 
-    logger.success(f"Done — {n} frame(s) processed, output: {output_dir}")
+    # Write sidecar metadata
+    fps = _get_fps(source)
+    metadata: dict = {
+        "total_frames": n,
+        "source": str(source),
+    }
+    if fps is not None:
+        metadata["fps"] = fps
+    with open(out_dir / "metadata.json", "w") as fh:
+        json.dump(metadata, fh, indent=2)
 
-    return output_dir, n
+    logger.success(f"Done — {n} frame(s) processed, output: {out_dir}")
+    return out_dir, n
 
 
 def _results_fn(result):
@@ -148,21 +161,33 @@ def _results_fn(result):
     return f"  Frames: {n}\n  Output: {output_dir}", []
 
 
-_DEFAULT_CONFIG = Path("ent_cv/modeling/configs/predict.yaml")
-
-
 @app.command()
 @notify("Prediction", results_fn=_results_fn)
-def main(config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML config")):
+def main(
+    source: Path = typer.Option(..., help="Path to video file or image directory"),
+    weights: Path = typer.Option(..., help="Path to model weights"),
+    conf: float = typer.Option(0.647, help="Confidence threshold"),
+    iou: float = typer.Option(0.7, help="IoU threshold for NMS"),
+    imgsz: int = typer.Option(1024, help="Inference image size"),
+    device: str = typer.Option("0", help="Device (e.g. '0', 'cpu')"),
+    overwrite: bool = typer.Option(False, help="Overwrite existing output without prompting"),
+    save: bool = typer.Option(True, help="Save prediction images/video"),
+    save_conf: bool = typer.Option(True, help="Save confidences in txt labels"),
+    save_txt: bool = typer.Option(True, help="Save results as .txt"),
+    save_json: bool = typer.Option(True, help="Save detections.json (Polars)"),
+    save_frames: bool = typer.Option(True, help="Save individual frames"),
+    verbose: bool = typer.Option(False, help="Verbose output"),
+    output_dir: Optional[Path] = typer.Option(None, help="Custom output directory"),
+    suffix: Optional[str] = typer.Option(None, help="Suffix appended to output dir name"),
+):
     """Run YOLO inference on a single source."""
-    cfg = _load_config(config_file)
-    out = cfg.output_dir or (PREDICTIONS_DIR / (cfg.source.stem + (f"_{cfg.suffix}" if cfg.suffix else "")))
-    if out.exists() and any(out.iterdir()):
-        if not typer.confirm(f"Output exists: {out}\nDelete and continue?", default=False):
-            logger.info("Aborted.")
-            return None
-        cfg.overwrite = True
-    return run(cfg)
+    return run(
+        source=source, weights=weights, conf=conf, iou=iou,
+        imgsz=imgsz, device=device, overwrite=overwrite, save=save,
+        save_conf=save_conf, save_txt=save_txt, save_json=save_json,
+        save_frames=save_frames, verbose=verbose, output_dir=output_dir,
+        suffix=suffix,
+    )
 
 
 if __name__ == "__main__":

@@ -27,16 +27,10 @@ import typer
 import yaml
 from loguru import logger
 
+from ent_cv.config import TRAIN_METRIC_KEYS
 from ent_cv.utils import notify
 
 app = typer.Typer(add_completion=False)
-
-_TRAIN_METRIC_KEYS = [
-    ("mAP50",     "metrics/mAP50(B)"),
-    ("mAP50-95",  "metrics/mAP50-95(B)"),
-    ("Precision", "metrics/precision(B)"),
-    ("Recall",    "metrics/recall(B)"),
-]
 
 
 def _load_yaml(path: Path) -> dict:
@@ -83,7 +77,7 @@ def _predict_summary(results: list[dict]) -> str:
 
 def _train_summary(results: list[dict]) -> str:
     col_w, name_w = 10, 45
-    labels = [label for label, _ in _TRAIN_METRIC_KEYS]
+    labels = [label for label, _ in TRAIN_METRIC_KEYS]
     header = f"  {'#':<4} {'Model':<{name_w}}" + "".join(f"{m:>{col_w}}" for m in labels)
     lines = [header, "  " + "-" * (len(header) - 2)]
     for r in results:
@@ -105,10 +99,9 @@ def _train_summary(results: list[dict]) -> str:
 
 
 def _run_predict(run_cfg: dict) -> dict:
-    from ent_cv.modeling.predict import PredictConfig, run, _results_fn
-    cfg = PredictConfig(**{k: v for k, v in run_cfg.items() if k in PredictConfig.__dataclass_fields__})
-    result = notify("Prediction", results_fn=_results_fn)(run)(cfg)
-    entry: dict = {"source": str(cfg.source)}
+    from ent_cv.modeling.predict import run
+    result = run(**run_cfg)
+    entry: dict = {"source": str(run_cfg.get("source", ""))}
     if result is None:
         entry["skipped"] = True
         entry["summary"] = None
@@ -119,21 +112,18 @@ def _run_predict(run_cfg: dict) -> dict:
 
 
 def _run_postprocess(run_cfg: dict) -> dict:
-    import dataclasses
-    from ent_cv.modeling.postprocess import PostprocessConfig, postprocess
-    cfg = PostprocessConfig(**{k: v for k, v in run_cfg.items() if k in PostprocessConfig.__dataclass_fields__})
-    changes = postprocess(**dataclasses.asdict(cfg))
-    return {"source": str(cfg.raw_json), "changes": changes}
+    from ent_cv.modeling.postprocess import postprocess
+    changes = postprocess(**run_cfg)
+    return {"source": str(run_cfg.get("raw_json", "")), "changes": changes}
 
 
 def _run_train(run_cfg: dict) -> dict:
-    from ent_cv.modeling.train import TrainConfig, run, _results_fn
-    cfg = TrainConfig(**{k: v for k, v in run_cfg.items() if k in TrainConfig.__dataclass_fields__})
-    result = notify("Training", results_fn=_results_fn)(run)(cfg)
+    from ent_cv.modeling.train import run
+    result = run(**run_cfg)
     rd = getattr(result, "results_dict", {})
     save_dir = Path(str(getattr(result, "save_dir", "")))
     entry: dict = {"name": save_dir.name or "?"}
-    for label, key in _TRAIN_METRIC_KEYS:
+    for label, key in TRAIN_METRIC_KEYS:
         entry[label] = rd.get(key)
     return entry
 
@@ -167,12 +157,9 @@ def _batch_results_fn(result: Any) -> tuple[str, list[Path]]:
     return "\n".join(lines), []
 
 
-_DEFAULT_CONFIG = Path("ent_cv/modeling/configs/batch.yaml")
-
-
 @app.command()
 @notify("Batch", results_fn=_batch_results_fn)
-def main(config_file: Path = typer.Argument(_DEFAULT_CONFIG, help="Path to YAML batch config")) -> dict:
+def main(config_file: Path = typer.Argument(..., help="Path to YAML batch config")) -> dict:
     """Run a modeling operation over multiple configurations."""
     if not config_file.exists():
         logger.error(f"Config not found: {config_file}")

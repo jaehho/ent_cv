@@ -1,9 +1,0 @@
-# compare_models config
-# Usage: uv run -m ent_cv.modeling.compare_models
-
-models_dir: /mnt/data/ent_cv/models
-sort_by: map50       # map50 | map50-95 | precision | recall
-top: null            # show only the top N models (null = all)
-verbose: false       # show training config detail table
-weights_suffix: best # best | last
-delete: 0            # +N keep top N | -N delete N worst | 0 = keep all
