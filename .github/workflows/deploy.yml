@@ -13,7 +13,6 @@ jobs:
   deploy:
     runs-on: self-hosted
     needs: []
-    environment: production
     steps:
       - uses: actions/checkout@v4
 
