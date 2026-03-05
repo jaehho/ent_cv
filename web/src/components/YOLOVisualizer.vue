@@ -85,7 +85,19 @@
           <div class="time-value">
             {{ formatTime(currentTime) }}
           </div>
-          <div class="time-sub">Frame {{ currentFrame + 1 }} / {{ data.total_frames }}</div>
+          <div class="time-sub">
+            Frame 
+            <input
+              type="number"
+              :value="currentFrame + 1"
+              @keydown.enter="e => handleFrameInput(e.target.value)"
+              @blur="e => handleFrameInput(e.target.value)"
+              min="1"
+              :max="data.total_frames"
+              class="frame-input"
+            />
+            / {{ data.total_frames }}
+          </div>
         </div>
 
         <!-- Confidence -->
@@ -290,22 +302,12 @@
           :key="i"
           class="det-card"
         >
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-            <div class="det-dot" :style="{ background: CLASS_COLORS[d.class_id % CLASS_COLORS.length] }" />
-            <span style="font-size:15px;font-weight:600">{{ d.class_name }}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="flex:1;height:4px;background:#1a1a24;border-radius:2px;overflow:hidden">
-              <div
-                :style="{
-                  width: `${d.confidence * 100}%`,
-                  height: '100%',
-                  borderRadius: '2px',
-                  background: `linear-gradient(90deg, ${CLASS_COLORS[d.class_id % CLASS_COLORS.length]}88, ${CLASS_COLORS[d.class_id % CLASS_COLORS.length]})`
-                }"
-              />
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div class="det-dot" :style="{ background: CLASS_COLORS[d.class_id % CLASS_COLORS.length] }" />
+              <span style="font-size:15px;font-weight:400">{{ d.class_name }}</span>
             </div>
-            <span style="font-size:13px;color:#888;font-variant-numeric:tabular-nums;width:42px;text-align:right">
+            <span style="font-size:13px;color:#888;font-variant-numeric:tabular-nums">
               {{ (d.confidence * 100).toFixed(0) }}%
             </span>
           </div>
@@ -393,18 +395,81 @@ const currentTime = computed(() => {
 
 const currentPartRawUrl = computed(() => {
   if (!activeCaseName.value) return null;
-  const entry = frameMap.value.get(currentFrame.value);
-  if (!entry?.source) return null;
-  const partName = entry.source.split('/').pop().replace(/\.mp4$/i, '');
+  let source = frameMap.value.get(currentFrame.value)?.source ?? null;
+  if (!source) {
+    const parts = data.value?.parts;
+    if (parts) {
+      for (const p of parts) {
+        if (currentFrame.value >= p.startFrame && currentFrame.value <= p.endFrame) {
+          source = p.source;
+          break;
+        }
+      }
+    }
+    if (!source) {
+      let bestStart = -1;
+      for (const [src, sf] of partStartFrame.value) {
+        if (sf <= currentFrame.value && sf > bestStart) {
+          bestStart = sf;
+          source = src;
+        }
+      }
+    }
+  }
+  if (!source) return null;
+  const partName = source.split('/').pop().replace(/\.mp4$/i, '');
   return `/api/raw/${activeCaseName.value}/${partName}.mp4`;
 });
 
 const currentPartPredictionFrameUrl = computed(() => {
   if (!activeCaseName.value) return null;
-  const entry = frameMap.value.get(currentFrame.value);
-  if (!entry?.source) return null;
-  const partName = entry.source.split('/').pop().replace(/\.mp4$/i, '');
-  const localFrame = currentFrame.value - (partStartFrame.value.get(entry.source) ?? 0);
+
+  // Determine which source (clip) this frame belongs to.
+  // Prefer a direct detection entry; fall back to the parts boundary table
+  // (present when detections.json was flat-format) or the first-detection map.
+  let source = frameMap.value.get(currentFrame.value)?.source ?? null;
+  let actualStartFrame = null;
+
+  if (!source) {
+    // Use server-provided part boundaries when available (most accurate).
+    const parts = data.value?.parts;
+    if (parts) {
+      for (const p of parts) {
+        if (currentFrame.value >= p.startFrame && currentFrame.value <= p.endFrame) {
+          source = p.source;
+          actualStartFrame = p.startFrame;
+          break;
+        }
+      }
+    }
+    // Fallback: scan partStartFrame for the largest start ≤ currentFrame.
+    if (!source) {
+      let bestStart = -1;
+      for (const [src, sf] of partStartFrame.value) {
+        if (sf <= currentFrame.value && sf > bestStart) {
+          bestStart = sf;
+          source = src;
+        }
+      }
+    }
+  }
+
+  if (!source) return null;
+
+  // Resolve the actual part start frame (0-based global index of clip frame 0).
+  if (actualStartFrame === null) {
+    const parts = data.value?.parts;
+    if (parts) {
+      const p = parts.find(p => p.source === source);
+      actualStartFrame = p ? p.startFrame : (partStartFrame.value.get(source) ?? 0);
+    } else {
+      actualStartFrame = partStartFrame.value.get(source) ?? 0;
+    }
+  }
+
+  const partName = source.split('/').pop().replace(/\.mp4$/i, '');
+  // Prediction frames are saved 1-indexed by Ultralytics (clip frame 0 → _1.jpg).
+  const localFrame = currentFrame.value - actualStartFrame + 1;
   return `/data/predictions/${activeCaseName.value}/${partName}_frames/${partName}_${localFrame}.jpg`;
 });
 
@@ -691,6 +756,15 @@ function seekToFrame(frame) {
       videoRef.value.currentTime = frame / fps - prevPartStartTs;
     }
   }
+}
+
+function handleFrameInput(value) {
+  if (!data.value) return;
+  const frameNum = parseInt(value, 10);
+  if (isNaN(frameNum)) return;
+  // Clamp to valid range (1-indexed display, 0-indexed internal)
+  const targetFrame = Math.max(1, Math.min(data.value.total_frames, frameNum)) - 1;
+  seekToFrame(targetFrame);
 }
 
 function togglePlay() {
@@ -1034,14 +1108,39 @@ watch(currentPartVideoUrl, (newUrl) => {
 // ── Video sync ─────────────────────────────────────────────────────────────
 watch([videoRef, data], ([videoEl, d]) => {
   if (!videoEl || !d) return;
-  const sync = () => {
-    const globalTime = videoEl.currentTime + currentPartStartTs.value;
+  const useRVFC = typeof videoEl.requestVideoFrameCallback === 'function';
+  const sync = (now, metadata) => {
+    // requestVideoFrameCallback provides the exact presented-frame media time,
+    // avoiding the race between rAF and the video decoder that caused frame
+    // skipping / duplication when using videoEl.currentTime.
+    const mediaTime = metadata ? metadata.mediaTime : videoEl.currentTime;
+    const globalTime = mediaTime + currentPartStartTs.value;
     // +0.001 guards against FP rounding (e.g. floor(frame/fps*fps) == frame-1)
     currentFrame.value = Math.min(Math.floor(globalTime * d.fps + 0.001), d.total_frames - 1);
-    if (!videoEl.paused) animFrameRef.value = requestAnimationFrame(sync);
+    if (!videoEl.paused) {
+      if (useRVFC) {
+        animFrameRef.value = videoEl.requestVideoFrameCallback(sync);
+      } else {
+        animFrameRef.value = requestAnimationFrame(() => sync());
+      }
+    }
   };
-  const onPlay  = () => { isPlaying.value = true;  sync(); };
-  const onPause = () => { isPlaying.value = false; cancelAnimationFrame(animFrameRef.value); };
+  const onPlay  = () => {
+    isPlaying.value = true;
+    if (useRVFC) {
+      animFrameRef.value = videoEl.requestVideoFrameCallback(sync);
+    } else {
+      sync();
+    }
+  };
+  const onPause = () => {
+    isPlaying.value = false;
+    if (useRVFC) {
+      videoEl.cancelVideoFrameCallback(animFrameRef.value);
+    } else {
+      cancelAnimationFrame(animFrameRef.value);
+    }
+  };
   videoEl.addEventListener("play", onPlay);
   videoEl.addEventListener("pause", onPause);
   // NOTE: do NOT attach sync to "seeked". seekToFrame() already sets currentFrame
@@ -1216,6 +1315,10 @@ onUnmounted(() => {
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("click", handleClickOutside);
   if (_rafId) cancelAnimationFrame(_rafId);
+  // Cancel pending video frame callback if active
+  if (videoRef.value && typeof videoRef.value.cancelVideoFrameCallback === 'function') {
+    videoRef.value.cancelVideoFrameCallback(animFrameRef.value);
+  }
 });
 </script>
 
@@ -1314,6 +1417,28 @@ onUnmounted(() => {
 }
 .time-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .time-sub { font-size: 13px; color: #555; margin-top: 4px; }
+.frame-input {
+  width: 60px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: #4ecdc4;
+  font-family: monospace;
+  font-size: 14px;
+  text-align: center;
+  padding: 2px 4px;
+  outline: none;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+}
+.frame-input::-webkit-inner-spin-button,
+.frame-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.frame-input:focus {
+  border-bottom-color: #4ecdc4;
+}
 .text-btn {
   font-size: 12px; color: #666; background: none; border: none;
   cursor: pointer; font-family: inherit; padding: 2px 6px;

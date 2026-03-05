@@ -174,10 +174,11 @@ export default defineConfig({
               // Remap original (sparse) class IDs → 0-based index into `classes`
               const classIndexRemap = new Map(sortedClassEntries.map(([origId], idx) => [origId, idx]));
 
+              let partBoundaries = null;
               let results;
               if (isFlat) {
                 // Build per-part cumulative frame-count boundaries for source assignment
-                const partBoundaries = []; // [{path, startFrame, endFrame}]
+                partBoundaries = []; // [{path, startFrame, endFrame}]
                 let cumulative = 0;
                 for (const mp4 of mp4s) {
                   const mp4Path = join(rawCaseDir, mp4);
@@ -217,7 +218,13 @@ export default defineConfig({
 
               if (!total_frames) total_frames = results.length;
 
-              const enriched = { fps, total_frames, classes, results };
+              // Include part boundaries so the frontend can look up actual part
+              // start frames even for frames that have no detection entries.
+              const parts = isFlat
+                ? partBoundaries.map(b => ({ source: b.path, startFrame: b.startFrame, endFrame: b.endFrame }))
+                : null;
+
+              const enriched = { fps, total_frames, classes, results, ...(parts ? { parts } : {}) };
               res.setHeader("Content-Type", "application/json");
               res.end(JSON.stringify(enriched));
               return;
