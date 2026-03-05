@@ -219,6 +219,104 @@ def apply_filter(
     return df.filter(pl.Series(keep_mask))
 
 
+# ── Bounding-box interpolation ────────────────────────────────────────────
+
+def interpolate_gaps(
+    filtered_df: pl.DataFrame,
+    M_original: np.ndarray,
+    M_filtered: np.ndarray,
+    classes: list[str],
+) -> pl.DataFrame:
+    """Insert linearly interpolated rows for frames filled by gap-fill.
+
+    When ``gap_fill_sec > 0`` the run-length filter bridges short gaps in the
+    presence matrix, but those gap frames have no real detection rows —
+    ``apply_filter`` only drops rows, it never creates them.  This function
+    synthesises one row per (gap_frame, class) by linearly interpolating the
+    bounding-box coordinates and confidence between the nearest real detections
+    on either side of the gap.  If a gap frame has no real detection on one side
+    (edge of clip), the nearest available detection is copied as-is.
+    """
+    if filtered_df.is_empty():
+        return filtered_df
+
+    # Frames that were gap-filled: present in filtered but absent in original
+    gap_mask = M_filtered & ~M_original  # (T, C) bool
+    if not gap_mask.any():
+        return filtered_df
+
+    cls_idx = {name: i for i, name in enumerate(classes)}
+
+    # Per-class lookup: frame -> best (highest-confidence) detection row
+    best_by_frame: dict[int, dict[int, dict]] = {c: {} for c in range(len(classes))}
+    for row in filtered_df.iter_rows(named=True):
+        ci = cls_idx.get(row["name"], -1)
+        if ci < 0:
+            continue
+        f = row["frame"]
+        if f not in best_by_frame[ci] or row["confidence"] > best_by_frame[ci][f]["confidence"]:
+            best_by_frame[ci][f] = row
+
+    new_rows: list[dict] = []
+
+    for ci, cls_name in enumerate(classes):
+        gap_frames_arr = np.where(gap_mask[:, ci])[0]
+        if len(gap_frames_arr) == 0:
+            continue
+
+        real_frames = sorted(best_by_frame[ci].keys())
+        if not real_frames:
+            continue
+
+        real_arr = np.array(real_frames)
+
+        for gf in map(int, gap_frames_arr):
+            bi = int(np.searchsorted(real_arr, gf, side="left")) - 1  # last frame <= gf
+            ai = int(np.searchsorted(real_arr, gf, side="right"))     # first frame > gf
+
+            has_before = bi >= 0
+            has_after = ai < len(real_arr)
+
+            if not has_before and not has_after:
+                continue
+
+            if not has_before:
+                ref = best_by_frame[ci][int(real_arr[ai])]
+                new_rows.append({**ref, "frame": gf})
+                continue
+
+            if not has_after:
+                ref = best_by_frame[ci][int(real_arr[bi])]
+                new_rows.append({**ref, "frame": gf})
+                continue
+
+            r0 = best_by_frame[ci][int(real_arr[bi])]
+            r1 = best_by_frame[ci][int(real_arr[ai])]
+            t = (gf - int(real_arr[bi])) / (int(real_arr[ai]) - int(real_arr[bi]))
+
+            b0, b1 = r0["box"], r1["box"]
+            new_rows.append({
+                "name": cls_name,
+                "class": r0["class"],
+                "confidence": round(
+                    r0["confidence"] + t * (r1["confidence"] - r0["confidence"]), 5
+                ),
+                "box": {
+                    "x1": b0["x1"] + t * (b1["x1"] - b0["x1"]),
+                    "y1": b0["y1"] + t * (b1["y1"] - b0["y1"]),
+                    "x2": b0["x2"] + t * (b1["x2"] - b0["x2"]),
+                    "y2": b0["y2"] + t * (b1["y2"] - b0["y2"]),
+                },
+                "frame": gf,
+            })
+
+    if not new_rows:
+        return filtered_df
+
+    new_df = pl.from_dicts(new_rows, schema=filtered_df.schema)
+    return pl.concat([filtered_df, new_df]).sort("frame")
+
+
 # ── Segment extraction ────────────────────────────────────────────────────
 
 def extract_segments(
@@ -287,10 +385,10 @@ def compute_summary(
     T = total_frames
 
     class_frame_counts: dict[str, int] = {}
-    label_changes = 0
-    prev: set[str] = set()
+    onset_counts: dict[str, int] = {}
+    transition_matrix: dict[str, dict[str, int]] = {}
 
-    # Group detections by frame to iterate in order
+    # Group detections by frame number
     if df.is_empty():
         frame_groups: dict[int, set[str]] = {}
     else:
@@ -299,18 +397,38 @@ def compute_summary(
             frame = row["frame"]
             frame_groups.setdefault(frame, set()).add(row["name"])
 
-    for frame_idx in range(T):
-        present = frame_groups.get(frame_idx, set())
+    # Frame-count accumulation (all labeled frames)
+    for present in frame_groups.values():
         for cls in present:
             class_frame_counts[cls] = class_frame_counts.get(cls, 0) + 1
-        if frame_idx > 0 and present != prev:
-            label_changes += 1
-        prev = present
+
+    # Onset + transition matrix: iterate only over sorted labeled frames.
+    # Unlabeled gaps are discarded — consecutive labeled frames are treated as adjacent
+    # for transition purposes regardless of the gap size between them.
+    sorted_labeled = sorted(frame_groups.keys())
+    class_last_frame: dict[str, int] = {}  # cls -> last frame index seen
+
+    for i, frame_idx in enumerate(sorted_labeled):
+        present = frame_groups[frame_idx]
+
+        # Onset: class starts a new run (was absent in the immediately preceding frame)
+        for cls in present:
+            if class_last_frame.get(cls, -2) < frame_idx - 1:
+                onset_counts[cls] = onset_counts.get(cls, 0) + 1
+            class_last_frame[cls] = frame_idx
+
+        # Transitions: all (from_cls → to_cls) pairs across the previous → current labeled frame
+        if i > 0:
+            prev_present = frame_groups[sorted_labeled[i - 1]]
+            for from_cls in prev_present:
+                for to_cls in present:
+                    if from_cls != to_cls:
+                        row = transition_matrix.setdefault(from_cls, {})
+                        row[to_cls] = row.get(to_cls, 0) + 1
 
     total_sec = round(T * sec_per_frame, 3)
     return {
         "total_frames": T,
-        "label_change_count": label_changes,
         "source_fps": fps,
         "total_case_time_sec": total_sec,
         "class_frame_counts": class_frame_counts,
@@ -320,6 +438,8 @@ def compute_summary(
         "class_time_sec": {
             cls: round(cnt * sec_per_frame, 3) for cls, cnt in class_frame_counts.items()
         },
+        "onset_count": onset_counts,
+        "transition_matrix": transition_matrix,
     }
 
 
@@ -332,6 +452,7 @@ def postprocess(
     gap_fill_sec: float,
     window_sec: float,
     vote_threshold: float,
+    confidence_threshold: float = 0.0,
     output_dir: Optional[Path] = None,
 ) -> dict:
     """Filter temporal noise from YOLO detections and write filtered outputs.
@@ -363,6 +484,8 @@ def postprocess(
         raise ValueError(f"method must be one of {METHODS!r}, got {method!r}")
 
     df = load_detections(raw_json)
+    if confidence_threshold > 0.0:
+        df = df.filter(pl.col("confidence") >= confidence_threshold)
     meta = load_metadata(raw_json)
     output_dir = Path(output_dir) if output_dir else raw_json.parent
 
@@ -412,8 +535,12 @@ def postprocess(
 
     filtered_df = apply_filter(df, M_filtered, classes)
 
+    # For run_length with gap-fill, synthesise detections for gap frames
+    if method == "run_length" and gap_frames > 0:
+        filtered_df = interpolate_gaps(filtered_df, M, M_filtered, classes)
+
     # Write filtered outputs as standard JSON for human readability
-    filter_info = {"method": method, "source": str(raw_json), **params}
+    filter_info = {"method": method, "source": str(raw_json), "confidence_threshold": confidence_threshold, **params}
 
     # Convert filtered DataFrame to list-of-dicts JSON
     filtered_records = filtered_df.to_dicts() if not filtered_df.is_empty() else []
@@ -472,6 +599,7 @@ def main(
     gap_fill_sec: float = typer.Option(1.0, help="[run_length] Fill gaps shorter than this (sec)"),
     window_sec: float = typer.Option(3.0, help="[majority_vote/gaussian] Window width in seconds"),
     vote_threshold: float = typer.Option(0.5, help="[majority_vote/gaussian] Vote fraction threshold"),
+    confidence_threshold: float = typer.Option(0.0, help="Min detection confidence (0 = keep all)"),
     output_dir: Optional[Path] = typer.Option(None, help="Output directory (default: same as raw_json)"),
 ) -> None:
     """Post-process YOLO temporal detections to remove classification noise."""
@@ -483,6 +611,7 @@ def main(
         gap_fill_sec=gap_fill_sec,
         window_sec=window_sec,
         vote_threshold=vote_threshold,
+        confidence_threshold=confidence_threshold,
     )
 
 

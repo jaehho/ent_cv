@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PREDICTIONS_DIR = "/mnt/data/ent_cv/predictions";
 const RAW_DIR         = "/mnt/data/ent_cv/raw";
+const PROJECT_ROOT    = join(__dirname, "..");
+const VENV_PYTHON     = join(PROJECT_ROOT, ".venv", "bin", "python");
 
 export default defineConfig({
   plugins: [
@@ -33,6 +35,70 @@ export default defineConfig({
             res.statusCode = 500;
             res.end(JSON.stringify({ error: err.message }));
           }
+        });
+
+        // POST /api/postprocess/:case → run ent_cv postprocess on demand
+        server.middlewares.use("/api/postprocess", (req, res, next) => {
+          if (req.method !== "POST") return next();
+          let body = "";
+          req.on("data", chunk => { body += chunk; });
+          req.on("end", () => {
+            try {
+              const {
+                caseName,
+                method = "run_length",
+                min_duration_sec = 1.0,
+                gap_fill_sec = 1.0,
+                window_sec = 3.0,
+                vote_threshold = 0.5,
+                confidence_threshold = 0.0,
+              } = JSON.parse(body);
+
+              // Validate inputs to prevent injection / path traversal
+              if (!caseName || typeof caseName !== "string" || caseName.includes("..") || caseName.includes("/")) {
+                res.statusCode = 400;
+                res.setHeader("Content-Type", "application/json");
+                return res.end(JSON.stringify({ ok: false, error: "Invalid case name" }));
+              }
+              const VALID_METHODS = ["run_length", "majority_vote", "gaussian"];
+              if (!VALID_METHODS.includes(method)) {
+                res.statusCode = 400;
+                res.setHeader("Content-Type", "application/json");
+                return res.end(JSON.stringify({ ok: false, error: "Invalid method" }));
+              }
+
+              const rawJson = join(PREDICTIONS_DIR, caseName, "detections.json");
+              const proc = spawnSync(VENV_PYTHON, [
+                "-m", "ent_cv.modeling.postprocess",
+                "--raw-json", rawJson,
+                "--method", method,
+                "--min-duration-sec",     String(Number(min_duration_sec)),
+                "--gap-fill-sec",         String(Number(gap_fill_sec)),
+                "--window-sec",           String(Number(window_sec)),
+                "--vote-threshold",       String(Number(vote_threshold)),
+                "--confidence-threshold", String(Number(confidence_threshold)),
+              ], { cwd: PROJECT_ROOT, encoding: "utf-8", timeout: 120_000 });
+
+              if (proc.status !== 0) {
+                res.statusCode = 500;
+                res.setHeader("Content-Type", "application/json");
+                return res.end(JSON.stringify({ ok: false, error: (proc.stderr || "postprocess failed").slice(0, 2000) }));
+              }
+
+              // Read freshly-written filtered_summary.json for display stats
+              let summary = null;
+              try {
+                summary = JSON.parse(readFileSync(join(PREDICTIONS_DIR, caseName, "filtered_summary.json"), "utf-8"));
+              } catch { /* not critical */ }
+
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ ok: true, summary }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ ok: false, error: err.message }));
+            }
+          });
         });
 
         // GET /api/raw/:case/:file.mp4 → serve with Range request support
@@ -150,7 +216,14 @@ export default defineConfig({
               } catch { /* no metadata */ }
               if (!fps) fps = probeVideoFps(join(rawCaseDir, mp4s[0]));
 
-              const rawDetections = JSON.parse(readFileSync(filePath, "utf-8"));
+              let rawDetections = JSON.parse(readFileSync(filePath, "utf-8"));
+
+              // Handle filtered_detections.json wrapper: { _filter: {...}, detections: [...] }
+              let filterMetadata = null;
+              if (!Array.isArray(rawDetections) && Array.isArray(rawDetections.detections)) {
+                filterMetadata = rawDetections._filter ?? null;
+                rawDetections = rawDetections.detections;
+              }
 
               // Detect format: flat array {frame, class, name, confidence, box}
               //                vs grouped  [{frame, source, detections:[{class_id,…}]}]
@@ -224,7 +297,7 @@ export default defineConfig({
                 ? partBoundaries.map(b => ({ source: b.path, startFrame: b.startFrame, endFrame: b.endFrame }))
                 : null;
 
-              const enriched = { fps, total_frames, classes, results, ...(parts ? { parts } : {}) };
+              const enriched = { fps, total_frames, classes, results, ...(parts ? { parts } : {}), ...(filterMetadata ? { _filter: filterMetadata } : {}) };
               res.setHeader("Content-Type", "application/json");
               res.end(JSON.stringify(enriched));
               return;

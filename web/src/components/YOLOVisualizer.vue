@@ -32,11 +32,6 @@
         <button class="hdr-btn" @click="newSession">← Cases</button>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
-        <button
-          class="hdr-btn"
-          :class="{ 'hdr-btn--active': showStats }"
-          @click="showStats = !showStats"
-        >Stats</button>
         <div class="mode-toggle">
           <button
             class="mode-btn"
@@ -61,15 +56,15 @@
         <div class="section">
           <div class="section-label">Playback</div>
           <div style="display:flex;gap:6px;margin-bottom:12px">
-            <button class="btn" @click="seekToFrame(Math.max(0, currentFrame - 1))">◀◀</button>
+            <button class="btn" @click="seekFiltered(-1)">◀◀</button>
             <button
               class="btn btn-play"
               :class="isPlaying ? 'btn-play--pause' : 'btn-play--go'"
               @click="togglePlay"
             >{{ isPlaying ? "⏸" : "▶" }}</button>
-            <button class="btn" @click="seekToFrame(Math.min(data.total_frames - 1, currentFrame + 1))">▶▶</button>
+            <button class="btn" @click="seekFiltered(1)">▶▶</button>
           </div>
-          <div style="display:flex;gap:4px">
+          <div style="display:flex;gap:4px;overflow:hidden">
             <button
               v-for="r in RATES"
               :key="r"
@@ -77,6 +72,48 @@
               :class="{ 'btn-rate--active': playbackRate === r }"
               @click="setRate(r)"
             >{{ r }}x</button>
+          </div>
+
+          <!-- Jump filter -->
+          <div style="margin-top:12px">
+            <div style="font-size:11px;color:#555;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">
+              Jump
+              <span v-if="jumpFilter !== 'none' && jumpFrames" style="color:#4ecdc4;font-size:10px;letter-spacing:0;text-transform:none;float:right">{{ jumpFrames.length }} frames</span>
+              <span v-else-if="jumpFilter === 'changed' && !changedFrames" style="color:#553;font-size:10px;letter-spacing:0;text-transform:none;float:right">run filter first</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:3px">
+              <button
+                v-for="jf in JUMP_FILTERS"
+                :key="jf.value"
+                class="mode-btn"
+                :class="{ 'mode-btn--active': jumpFilter === jf.value }"
+                style="font-size:10px;padding:5px 6px;border:1px solid #2a2a35;border-radius:4px"
+                @click="jumpFilter = jf.value"
+              >{{ jf.label }}</button>
+            </div>
+            <!-- Class picker -->
+            <div v-if="jumpFilter === 'class'" style="margin-top:8px;max-height:90px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;padding:2px 0">
+              <button
+                v-for="item in displayedClasses"
+                :key="item.idx"
+                @click="toggleJumpClass(item.idx)"
+                :style="{
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  fontSize: '10px',
+                  border: jumpFilterClassIds.has(item.idx)
+                    ? `1px solid ${CLASS_COLORS[item.idx % CLASS_COLORS.length]}`
+                    : '1px solid #222',
+                  background: jumpFilterClassIds.has(item.idx)
+                    ? CLASS_COLORS[item.idx % CLASS_COLORS.length] + '33'
+                    : 'transparent',
+                  color: jumpFilterClassIds.has(item.idx)
+                    ? CLASS_COLORS[item.idx % CLASS_COLORS.length]
+                    : '#555',
+                  cursor: 'pointer',
+                }"
+              >{{ item.cls }}</button>
+            </div>
           </div>
         </div>
 
@@ -100,71 +137,89 @@
           </div>
         </div>
 
-        <!-- Confidence -->
+        <!-- Post-process -->
         <div class="section">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <span class="section-label" style="margin-bottom:0">Confidence</span>
-            <span style="font-size:14px;color:#4ecdc4;font-weight:600">{{ confidenceThreshold.toFixed(2) }}</span>
-          </div>
-          <input type="range" min="0" max="1" step="0.01" :value="confidenceThreshold"
-            @input="e => confidenceThreshold = parseFloat(e.target.value)"
-            style="width:100%;accent-color:#4ecdc4" />
-        </div>
+          <div class="section-label">Post-process</div>
 
-        <!-- Classes -->
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <span class="section-label" style="margin-bottom:0">Classes</span>
-            <div class="custom-dropdown">
-              <span class="section-label" style="margin-bottom:0;margin-right:4px">Sort:</span>
-              <div class="dropdown-trigger" @click="showSortDropdown = !showSortDropdown">
-                <span class="dropdown-value">{{ classSortMode }}</span>
-                <span class="dropdown-chevron">▾</span>
-              </div>
-              <div v-if="showSortDropdown" class="dropdown-menu">
-                <div class="dropdown-item" @click="classSortMode = 'default'; showSortDropdown = false">Default</div>
-                <div class="dropdown-item" @click="classSortMode = 'frequency'; showSortDropdown = false">Frequency</div>
-                <div class="dropdown-item" @click="classSortMode = 'alphabetical'; showSortDropdown = false">Alphabetical</div>
-                <div class="dropdown-item" @click="classSortMode = 'custom'; showSortDropdown = false">Custom</div>
-              </div>
+          <!-- Raw / Filtered toggle -->
+          <div class="mode-toggle" style="margin-bottom:12px">
+            <button class="mode-btn" :class="{ 'mode-btn--active': filterMode === 'raw' }" style="flex:1" @click="filterMode = 'raw'">Raw</button>
+            <button class="mode-btn" :class="{ 'mode-btn--active': filterMode === 'filtered' }" style="flex:1" @click="filterMode = 'filtered'">Filtered</button>
+          </div>
+
+          <!-- Active filter info chip -->
+          <div v-if="filterMode === 'filtered' && filterInfo" style="font-size:11px;color:#555;margin-bottom:10px;padding:7px 8px;background:#0c0c16;border-radius:6px;border:1px solid #1a1a24">
+            <span style="color:#666">{{ filterInfo.method.replace(/_/g, ' ') }}</span>
+            <template v-if="filterInfo.min_duration_sec != null">
+              &nbsp;· min {{ filterInfo.min_duration_sec }}s / gap {{ filterInfo.gap_fill_sec }}s
+            </template>
+            <template v-else-if="filterInfo.window_sec != null">
+              &nbsp;· window {{ filterInfo.window_sec }}s / thr {{ filterInfo.vote_threshold }}
+            </template>
+          </div>
+
+          <!-- Method selector -->
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:#555;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Method</div>
+            <div class="mode-toggle">
+              <button v-for="m in PP_METHODS" :key="m" class="mode-btn" :class="{ 'mode-btn--active': ppMethod === m }" style="flex:1;font-size:10px;padding:5px 2px" @click="ppMethod = m">{{ m.replace(/_/g, ' ') }}</button>
             </div>
           </div>
-          <div
-            v-for="(item, displayIdx) in displayedClasses"
-            :key="item.idx"
-            class="class-row"
-            :class="{ 'class-row--dragging': draggingClassIdx === displayIdx }"
-            :style="{ background: enabledClasses.has(item.idx) ? '#0e0e1a' : 'transparent', opacity: enabledClasses.has(item.idx) ? 1 : 0.35, cursor: classSortMode === 'custom' ? 'move' : 'pointer' }"
-            :draggable="classSortMode === 'custom'"
-            @click="toggleClass(item.idx)"
-            @dblclick.stop="handleClassDoubleClick(item.idx)"
-            @dragstart="handleDragStart($event, displayIdx)"
-            @dragover.prevent="handleDragOver($event, displayIdx)"
-            @drop="handleDrop($event, displayIdx)"
-            @dragend="handleDragEnd"
-          >
-            <div v-if="classSortMode === 'custom'" style="margin-right:6px;color:#666;cursor:grab;user-select:none" @mousedown.stop>⋮⋮</div>
-            <div class="class-dot" :style="{ background: CLASS_COLORS[item.idx % CLASS_COLORS.length] }" />
-            <div style="flex:1;min-width:0">
-              <div class="class-name">{{ item.cls }}</div>
-              <div v-if="showStats && classStats[item.idx]" class="class-stat">
-                {{ classStats[item.idx].pct.toFixed(0) }}% frames
+
+          <!-- run_length params -->
+          <template v-if="ppMethod === 'run_length'">
+            <div style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:11px;color:#555">Min duration</span>
+                <span style="font-size:11px;color:#4ecdc4">{{ ppMinDuration.toFixed(1) }}s</span>
               </div>
-              <div v-if="showStats && enabledClasses.has(item.idx) && classStats[item.idx]" style="width:100%;height:24px;margin-top:6px">
-                <svg width="100%" height="24" viewBox="0 0 40 24" preserveAspectRatio="none">
-                  <rect
-                    v-for="(p, i) in sparklines[item.idx]"
-                    :key="i"
-                    :x="i * 2"
-                    :y="24 - p * 24"
-                    width="1.5"
-                    :height="p * 24"
-                    :fill="CLASS_COLORS[item.idx % CLASS_COLORS.length]"
-                    opacity="0.7"
-                  />
-                </svg>
-              </div>
+              <input type="range" min="0.1" max="5" step="0.1" :value="ppMinDuration" @input="e => ppMinDuration = parseFloat(e.target.value)" style="width:100%;accent-color:#4ecdc4" />
             </div>
+            <div style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:11px;color:#555">Gap fill</span>
+                <span style="font-size:11px;color:#4ecdc4">{{ ppGapFill.toFixed(1) }}s</span>
+              </div>
+              <input type="range" min="0" max="5" step="0.1" :value="ppGapFill" @input="e => ppGapFill = parseFloat(e.target.value)" style="width:100%;accent-color:#4ecdc4" />
+            </div>
+          </template>
+
+          <!-- majority_vote / gaussian params -->
+          <template v-else>
+            <div style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:11px;color:#555">Window</span>
+                <span style="font-size:11px;color:#4ecdc4">{{ ppWindowSec.toFixed(1) }}s</span>
+              </div>
+              <input type="range" min="0.5" max="10" step="0.5" :value="ppWindowSec" @input="e => ppWindowSec = parseFloat(e.target.value)" style="width:100%;accent-color:#4ecdc4" />
+            </div>
+            <div style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:11px;color:#555">Vote threshold</span>
+                <span style="font-size:11px;color:#4ecdc4">{{ ppVoteThreshold.toFixed(2) }}</span>
+              </div>
+              <input type="range" min="0.1" max="0.9" step="0.01" :value="ppVoteThreshold" @input="e => ppVoteThreshold = parseFloat(e.target.value)" style="width:100%;accent-color:#4ecdc4" />
+            </div>
+          </template>
+
+          <!-- Min Confidence -->
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:11px;color:#555">Min confidence</span>
+              <span style="font-size:11px;color:#4ecdc4">{{ confidenceThreshold.toFixed(2) }}</span>
+            </div>
+            <input type="range" min="0" max="1" step="0.01" :value="confidenceThreshold"
+              @input="e => confidenceThreshold = parseFloat(e.target.value)"
+              style="width:100%;accent-color:#4ecdc4" />
+          </div>
+
+          <button class="btn" :disabled="ppRunning" style="display:none" />
+          <!-- Status indicator replaces Run button -->
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 0;min-height:26px">
+            <span v-if="ppRunning" style="font-size:11px;color:#888">⟳ Processing…</span>
+            <span v-else-if="ppError" style="font-size:11px;color:#ff6b6b;cursor:help" :title="ppError">✗ Error</span>
+            <span v-else-if="ppResult" style="font-size:11px;color:#4ecdc4">✓ Done</span>
+            <span v-else style="font-size:11px;color:#333">Waiting for case…</span>
           </div>
         </div>
       </div>
@@ -291,30 +346,94 @@
       </div>
 
       <!-- ── Right Stats Panel ──────────────────────────────────────────── -->
-      <div v-if="showStats" class="right-panel" style="display: flex; flex-direction: column">
-        <div class="section-label">Frame Analysis</div>
-        <div v-if="currentDetections.length === 0" style="font-size:14px;color:#333;padding:20px 0;text-align:center">
-          No detections in frame
-        </div>
-        <div
-          v-else
-          v-for="(d, i) in currentDetections"
-          :key="i"
-          class="det-card"
-        >
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <div style="display:flex;align-items:center;gap:6px">
-              <div class="det-dot" :style="{ background: CLASS_COLORS[d.class_id % CLASS_COLORS.length] }" />
-              <span style="font-size:15px;font-weight:400">{{ d.class_name }}</span>
+      <div class="right-panel" style="display: flex; flex-direction: column; overflow: hidden; padding: 0">
+
+        <!-- Classes (top, scrollable) -->
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:10px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span class="section-label" style="margin-bottom:0">Classes</span>
+            <div class="custom-dropdown">
+              <span class="section-label" style="margin-bottom:0;margin-right:4px">Sort:</span>
+              <div class="dropdown-trigger" @click="showSortDropdown = !showSortDropdown">
+                <span class="dropdown-value">{{ classSortMode }}</span>
+                <span class="dropdown-chevron">▾</span>
+              </div>
+              <div v-if="showSortDropdown" class="dropdown-menu">
+                <div class="dropdown-item" @click="classSortMode = 'default'; showSortDropdown = false">Default</div>
+                <div class="dropdown-item" @click="classSortMode = 'frequency'; showSortDropdown = false">Frequency</div>
+                <div class="dropdown-item" @click="classSortMode = 'alphabetical'; showSortDropdown = false">Alphabetical</div>
+                <div class="dropdown-item" @click="classSortMode = 'custom'; showSortDropdown = false">Custom</div>
+              </div>
             </div>
-            <span style="font-size:13px;color:#888;font-variant-numeric:tabular-nums">
-              {{ (d.confidence * 100).toFixed(0) }}%
-            </span>
           </div>
-          <div v-if="d.bbox" style="font-size:11px;color:#444;margin-top:4px">
-            bbox: [{{ d.bbox.map(v => v.toFixed(0)).join(", ") }}]
+          <div
+            v-for="(item, displayIdx) in displayedClasses"
+            :key="item.idx"
+            class="class-row"
+            :class="{ 'class-row--dragging': draggingClassIdx === displayIdx }"
+            :style="{ background: enabledClasses.has(item.idx) ? '#0e0e1a' : 'transparent', opacity: enabledClasses.has(item.idx) ? 1 : 0.35, cursor: classSortMode === 'custom' ? 'move' : 'pointer' }"
+            :draggable="classSortMode === 'custom'"
+            @click="toggleClass(item.idx)"
+            @dblclick.stop="handleClassDoubleClick(item.idx)"
+            @dragstart="handleDragStart($event, displayIdx)"
+            @dragover.prevent="handleDragOver($event, displayIdx)"
+            @drop="handleDrop($event, displayIdx)"
+            @dragend="handleDragEnd"
+          >
+            <div v-if="classSortMode === 'custom'" style="margin-right:6px;color:#666;cursor:grab;user-select:none" @mousedown.stop>⋮⋮</div>
+            <div class="class-dot" :style="{ background: CLASS_COLORS[item.idx % CLASS_COLORS.length] }" />
+            <div style="flex:1;min-width:0">
+              <div class="class-name">{{ item.cls }}</div>
+              <div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap">
+                <div v-if="classStats[item.idx]" class="class-stat">
+                  {{ classStats[item.idx].pct.toFixed(0) }}% frames
+                </div>
+                <div v-if="filteredSummary?.onset_count?.[item.cls] != null" style="font-size:11px;color:#888">
+                  {{ filteredSummary.onset_count[item.cls] }}× onset
+                </div>
+                <div v-if="filterMode === 'filtered' && filteredSummary?.class_time_sec?.[item.cls] != null" style="font-size:11px;color:#4ecdc4">
+                  {{ filteredSummary.class_time_sec[item.cls].toFixed(1) }}s
+                </div>
+              </div>
+              <div v-if="enabledClasses.has(item.idx) && classStats[item.idx]" style="width:100%;height:24px;margin-top:6px">
+                <svg width="100%" height="24" viewBox="0 0 40 24" preserveAspectRatio="none">
+                  <rect
+                    v-for="(p, i) in sparklines[item.idx]"
+                    :key="i"
+                    :x="i * 2"
+                    :y="24 - p * 24"
+                    width="1.5"
+                    :height="p * 24"
+                    :fill="CLASS_COLORS[item.idx % CLASS_COLORS.length]"
+                    opacity="0.7"
+                  />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
+
+        <!-- Transitions (filtered mode, when summary available) -->
+        <div v-if="filteredSummary?.transition_matrix && Object.keys(filteredSummary.transition_matrix).length"
+          style="flex-shrink:0;border-top:1px solid #1a1a24;padding:10px 14px;max-height:40%;overflow-y:auto">
+          <div class="section-label" style="margin-bottom:8px">Transitions</div>
+          <div
+            v-for="[fromCls, targets] in Object.entries(filteredSummary.transition_matrix)"
+            :key="fromCls"
+          >
+            <div
+              v-for="[toCls, count] in Object.entries(targets).sort((a,b) => b[1]-a[1])"
+              :key="toCls"
+              style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px;font-size:11px"
+            >
+              <span style="flex:1;min-width:0;color:#888;word-break:break-all">{{ fromCls }}</span>
+              <span style="color:#444;flex-shrink:0;padding-top:1px">→</span>
+              <span style="flex:1;min-width:0;color:#888;word-break:break-all">{{ toCls }}</span>
+              <span style="color:#4ecdc4;font-weight:600;flex-shrink:0;min-width:18px;text-align:right">{{ count }}</span>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -330,6 +449,15 @@ import { CLASS_COLORS, formatTime } from "../utils/index.js";
 // ── Constants ──────────────────────────────────────────────────────────────
 const RATES = [0.25, 0.5, 1, 2, 4];
 const SPARKLINE_BINS = 20;
+const PP_METHODS = ['run_length', 'majority_vote', 'gaussian'];
+const JUMP_FILTERS = [
+  { value: 'none',    label: 'Off' },
+  { value: 'any',     label: 'Any' },
+  { value: 'class',   label: 'Class' },
+  { value: 'onset',   label: 'Onset' },
+  { value: 'offset',  label: 'Offset' },
+  { value: 'changed', label: 'Changed' },
+];
 
 // Precomputed RGB values for CLASS_COLORS to avoid repeated hex parsing in hot loops
 const CLASS_COLORS_RGB = CLASS_COLORS.map(hex => ({
@@ -360,6 +488,24 @@ const classSortMode     = ref('custom');  // 'default' | 'frequency' | 'alphabet
 const customOrder       = ref([]);  // array of class indices (empty = not initialized)
 const draggingClassIdx  = ref(null);  // currently dragging class index
 const showSortDropdown  = ref(false);  // sort dropdown visibility
+
+// ── Jump-filter state ─────────────────────────────────────────────────────
+const jumpFilter        = ref('none'); // 'none'|'any'|'class'|'onset'|'changed'
+const jumpFilterClassIds = ref(new Set()); // class indices when jumpFilter==='class'
+
+// ── Post-process state ─────────────────────────────────────────────────────────────
+const filterMode        = ref('raw');        // 'raw' | 'filtered'
+const ppMethod          = ref('run_length');
+const ppMinDuration     = ref(1.0);
+const ppGapFill         = ref(1.0);
+const ppWindowSec       = ref(3.0);
+const ppVoteThreshold   = ref(0.5);
+const ppRunning         = ref(false);
+const ppError           = ref(null);
+const ppResult          = ref(null);
+const filterInfo        = ref(null);
+const rawFrameSet       = shallowRef(null);  // Set<number> of raw frame indices
+const filteredSummary   = ref(null);          // class_time_sec etc from filtered_summary.json
 
 // ── Refs ───────────────────────────────────────────────────────────────────
 const videoRef    = ref(null);
@@ -559,26 +705,20 @@ const rasterLabelBarHeight = computed(() =>
 );
 
 // ── Optimized: single-pass sparse filtered data ────────────────────────────
-// Instead of building a dense array[total_frames], build a sparse Map of only
-// frames that have detections passing filters. Used by raster/minimap drawing.
+// Builds a sparse Map of frames with detections (respecting enabled classes only;
+// confidence filtering is handled by postprocess.py, not the display layer).
 const filteredSparseMap = computed(() => {
   if (!data.value) return null;
   const numClasses = data.value.classes.length;
   const enabled = enabledClasses.value;
-  const threshold = confidenceThreshold.value;
   const result = new Map();
 
   for (const [frameNum, entry] of frameMap.value) {
     let row = null;
     for (const det of entry.detections) {
-      if (enabled.has(det.class_id) && det.confidence >= threshold) {
-        if (!row) {
-          row = new Float32Array(numClasses); // 0-initialized, compact
-        }
-        // Keep max confidence per class per frame
-        if (det.confidence > row[det.class_id]) {
-          row[det.class_id] = det.confidence;
-        }
+      if (enabled.has(det.class_id)) {
+        if (!row) row = new Float32Array(numClasses);
+        if (det.confidence > row[det.class_id]) row[det.class_id] = det.confidence;
       }
     }
     if (row) result.set(frameNum, row);
@@ -586,12 +726,94 @@ const filteredSparseMap = computed(() => {
   return result;
 });
 
+// Frames changed by filtering: present in raw but absent in filtered, or vice-versa.
+// Only non-null when in filtered mode — drives the change-strip in the raster/minimap.
+const changedFrames = computed(() => {
+  if (filterMode.value !== 'filtered' || !rawFrameSet.value || !data.value) return null;
+  const rawSet = rawFrameSet.value;
+  const filtSet = new Set(frameMap.value.keys());
+  const changed = new Set();
+  for (const f of rawSet) if (!filtSet.has(f)) changed.add(f);
+  for (const f of filtSet) if (!rawSet.has(f)) changed.add(f);
+  return changed.size > 0 ? changed : null;
+});
+
+// Sorted array of frame numbers that match the active jump filter.
+// Returns null when filter is off or no frames match.
+const jumpFrames = computed(() => {
+  if (!data.value || jumpFilter.value === 'none') return null;
+  const jf = jumpFilter.value;
+  const fsm = filteredSparseMap.value;
+  if (!fsm) return null;
+
+  if (jf === 'any') {
+    return [...fsm.keys()].sort((a, b) => a - b);
+  }
+
+  if (jf === 'class') {
+    const ids = jumpFilterClassIds.value;
+    if (!ids.size) return null;
+    const frames = [];
+    for (const [f, row] of fsm) {
+      for (const id of ids) {
+        if (row[id] > 0) { frames.push(f); break; }
+      }
+    }
+    return frames.sort((a, b) => a - b);
+  }
+
+  if (jf === 'onset') {
+    // First frame of each contiguous detection run (per class, respecting gaps ≥ 2 frames)
+    const sorted = [...fsm.keys()].sort((a, b) => a - b);
+    const numClasses = data.value.classes.length;
+    const lastSeen = new Int32Array(numClasses).fill(-999);
+    const onsets = new Set();
+    for (const f of sorted) {
+      const row = fsm.get(f);
+      for (let c = 0; c < numClasses; c++) {
+        if (row[c] > 0) {
+          if (lastSeen[c] < f - 1) onsets.add(f);
+          lastSeen[c] = f;
+        }
+      }
+    }
+    return [...onsets].sort((a, b) => a - b);
+  }
+
+  if (jf === 'offset') {
+    // Last frame of each contiguous detection run (per class, preceding a gap ≥ 2 or end)
+    const sorted = [...fsm.keys()].sort((a, b) => a - b);
+    const numClasses = data.value.classes.length;
+    const offsets = new Set();
+    for (let i = 0; i < sorted.length; i++) {
+      const f = sorted[i];
+      const nextF = i + 1 < sorted.length ? sorted[i + 1] : Infinity;
+      const row = fsm.get(f);
+      for (let c = 0; c < numClasses; c++) {
+        if (row[c] > 0) {
+          const nextRow = nextF === f + 1 ? fsm.get(nextF) : null;
+          if (!nextRow || nextRow[c] === 0) {
+            offsets.add(f);
+            break;
+          }
+        }
+      }
+    }
+    return [...offsets].sort((a, b) => a - b);
+  }
+
+  if (jf === 'changed') {
+    if (!changedFrames.value) return null;
+    return [...changedFrames.value].sort((a, b) => a - b);
+  }
+
+  return null;
+});
+
 const currentDetections = computed(() => {
   const entry = frameMap.value.get(currentFrame.value);
   if (!entry) return [];
-  return entry.detections.filter(
-    d => enabledClasses.value.has(d.class_id) && d.confidence >= confidenceThreshold.value
-  );
+  return entry.detections.filter(d => enabledClasses.value.has(d.class_id));
 });
 
 // ── Optimized: single-pass class stats ─────────────────────────────────────
@@ -599,18 +821,14 @@ const classStats = computed(() => {
   if (!data.value) return [];
   const numClasses = data.value.classes.length;
   const enabled = enabledClasses.value;
-  const threshold = confidenceThreshold.value;
   const totalFrames = data.value.total_frames || 1;
 
-  // Single pass over all results
   const counts = new Uint32Array(numClasses);
 
   for (const [, entry] of frameMap.value) {
     for (const det of entry.detections) {
       const cid = det.class_id;
-      if (enabled.has(cid) && det.confidence >= threshold) {
-        counts[cid]++;
-      }
+      if (enabled.has(cid)) counts[cid]++;
     }
   }
 
@@ -717,8 +935,15 @@ async function loadCase(caseName) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const parsed = await res.json();
     data.value = parsed;
+    rawFrameSet.value = new Set(parsed.results.map(r => r.frame));
+    filteredSummary.value = null;
+    filterInfo.value = null;
+    filterMode.value = 'raw';
+    ppResult.value = null;
+    ppError.value = null;
     activeCaseName.value = caseName;
     enabledClasses.value = new Set(parsed.classes.map((_, i) => i));
+    jumpFilterClassIds.value = new Set();
     // Initialize custom order if not matching or empty
     if (customOrder.value.length !== parsed.classes.length) {
       customOrder.value = parsed.classes.map((_, i) => i);
@@ -730,6 +955,90 @@ async function loadCase(caseName) {
   } catch (err) {
     alert(`Failed to load case "${caseName}": ${err.message}`);
   }
+}
+
+async function reloadData(caseName, mode) {
+  const filename = mode === 'filtered' ? 'filtered_detections.json' : 'detections.json';
+  const res = await fetch(`/data/predictions/${caseName}/${filename}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} — no filtered data yet (run filter first)`);
+  const parsed = await res.json();
+  data.value = parsed;
+  filterInfo.value = parsed._filter ?? null;
+  if (mode === 'raw') {
+    rawFrameSet.value = new Set(parsed.results.map(r => r.frame));
+  } else {
+    try {
+      const sumRes = await fetch(`/data/predictions/${caseName}/filtered_summary.json`);
+      if (sumRes.ok) filteredSummary.value = await sumRes.json();
+    } catch {}
+  }
+}
+
+async function runPostprocess() {
+  if (!activeCaseName.value) return;
+  ppRunning.value = true;
+  ppError.value = null;
+  try {
+    const body = {
+      caseName: activeCaseName.value,
+      method: ppMethod.value,
+      min_duration_sec: ppMinDuration.value,
+      gap_fill_sec: ppGapFill.value,
+      window_sec: ppWindowSec.value,
+      vote_threshold: ppVoteThreshold.value,
+      confidence_threshold: confidenceThreshold.value,
+    };
+    const res = await fetch('/api/postprocess', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = await res.json();
+    if (!result.ok) throw new Error(result.error);
+    ppResult.value = result;
+    filteredSummary.value = result.summary ?? null;
+    // Switch to filtered view, then reload; if already filtered just reload
+    if (filterMode.value !== 'filtered') {
+      filterMode.value = 'filtered'; // watch fires reloadData
+    } else {
+      await reloadData(activeCaseName.value, 'filtered');
+    }
+  } catch (err) {
+    ppError.value = err.message;
+  } finally {
+    ppRunning.value = false;
+  }
+}
+
+// Seek to the nearest frame matching the active jump filter (dir: +1 forward, -1 back).
+// Falls back to ±1 frame step when no filter is active or no match exists.
+function seekFiltered(dir) {
+  if (!data.value) return;
+  const frames = jumpFrames.value;
+  if (!frames || !frames.length) {
+    const cf = currentFrame.value;
+    seekToFrame(dir > 0
+      ? Math.min(data.value.total_frames - 1, cf + 1)
+      : Math.max(0, cf - 1));
+    return;
+  }
+  const cf = currentFrame.value;
+  if (dir > 0) {
+    const idx = frames.findIndex(f => f > cf);
+    seekToFrame(idx >= 0 ? frames[idx] : frames[0]);
+  } else {
+    let idx = -1;
+    for (let i = frames.length - 1; i >= 0; i--) {
+      if (frames[i] < cf) { idx = i; break; }
+    }
+    seekToFrame(idx >= 0 ? frames[idx] : frames[frames.length - 1]);
+  }
+}
+
+function toggleJumpClass(classId) {
+  const s = new Set(jumpFilterClassIds.value);
+  s.has(classId) ? s.delete(classId) : s.add(classId);
+  jumpFilterClassIds.value = s;
 }
 
 function newSession() {
@@ -745,6 +1054,7 @@ function seekToFrame(frame) {
   // because currentPartStartTs depends on currentFrame (via frameMap lookup).
   const prevPartStartTs = currentPartStartTs.value;
   currentFrame.value = frame;
+  scheduleDraws(1);  // Immediately redraw overlay with new frame's detections
   if (videoRef.value && videoSrc.value) {
     const entry = frameMap.value.get(frame);
     const fps = data.value.fps;
@@ -988,6 +1298,17 @@ function drawRaster() {
       ctx.setLineDash([]);
     }
   }
+
+  // Changed-frame markers (filtered mode) — 2-px strip at raster bottom
+  const cf = changedFrames.value;
+  if (cf) {
+    ctx.fillStyle = 'rgba(255, 210, 50, 0.85)';
+    for (const f of cf) {
+      if (f < startFrame || f >= endFrame) continue;
+      const x = (f - startFrame) * pxPerFrame;
+      ctx.fillRect(x, H - 2, Math.max(pxPerFrame, 1), 2);
+    }
+  }
 }
 
 function drawMinimap() {
@@ -1037,6 +1358,16 @@ function drawMinimap() {
   ctx.lineWidth = 1.5;
   ctx.strokeRect(vpX, 0, vpW, H);
 
+  // Changed-frame markers (filtered mode) — 2-px strip at minimap top
+  const mcf = changedFrames.value;
+  if (mcf) {
+    ctx.fillStyle = 'rgba(255, 210, 50, 0.9)';
+    const pxPerFr = W / totalFrames;
+    for (const f of mcf) {
+      ctx.fillRect((f / totalFrames) * W, 0, Math.max(pxPerFr, 1), 2);
+    }
+  }
+
   // Playhead
   const phX = (currentFrame.value / totalFrames) * W;
   ctx.strokeStyle = "#ff6b6b";
@@ -1067,9 +1398,41 @@ watch(customOrder, (order) => {
   }
 }, { deep: true });
 
+// Reload data when filter mode toggles between raw and filtered
+watch(filterMode, async (newMode, oldMode) => {
+  if (!activeCaseName.value || !data.value) return;
+  try {
+    await reloadData(activeCaseName.value, newMode);
+  } catch (err) {
+    filterMode.value = oldMode;  // revert toggle
+    ppError.value = `Could not load ${newMode} detections: ${err.message}`;
+  }
+});
+
+// ── Auto-run postprocess ───────────────────────────────────────────────────
+let _ppDebounceId = null;
+function schedulePostprocess(delay = 800) {
+  clearTimeout(_ppDebounceId);
+  if (!activeCaseName.value) return;
+  _ppDebounceId = setTimeout(() => runPostprocess(), delay);
+}
+
+// Debounce on param changes (800 ms lets sliders settle)
+watch(
+  [ppMethod, ppMinDuration, ppGapFill, ppWindowSec, ppVoteThreshold],
+  () => schedulePostprocess(800),
+);
+// Confidence threshold uses shorter delay so scrubbing the slider feels responsive
+watch(confidenceThreshold, () => schedulePostprocess(300));
+
+// Immediate run when a new case is loaded (short delay to let data settle)
+watch(activeCaseName, (name) => {
+  if (name) schedulePostprocess(300);
+});
+
 // Single watcher for raster + minimap (they share most deps)
 watch(
-  [filteredSparseMap, () => currentFrame.value, () => zoomLevel.value, () => panOffset.value, () => hoveredFrame.value],
+  [filteredSparseMap, changedFrames, () => currentFrame.value, () => zoomLevel.value, () => panOffset.value, () => hoveredFrame.value],
   () => scheduleDraws(6),  // 2 | 4 = raster + minimap
   { flush: "post" }
 );
@@ -1110,19 +1473,18 @@ watch([videoRef, data], ([videoEl, d]) => {
   if (!videoEl || !d) return;
   const useRVFC = typeof videoEl.requestVideoFrameCallback === 'function';
   const sync = (now, metadata) => {
-    // requestVideoFrameCallback provides the exact presented-frame media time,
-    // avoiding the race between rAF and the video decoder that caused frame
-    // skipping / duplication when using videoEl.currentTime.
+    // Only update currentFrame while actively playing. When paused, seekToFrame()
+    // already sets currentFrame directly. Letting RVFC/rAF override it while paused
+    // causes FP rounding to snap the counter back, making jumps appear to do nothing.
+    if (videoEl.paused) return;
     const mediaTime = metadata ? metadata.mediaTime : videoEl.currentTime;
     const globalTime = mediaTime + currentPartStartTs.value;
     // +0.001 guards against FP rounding (e.g. floor(frame/fps*fps) == frame-1)
     currentFrame.value = Math.min(Math.floor(globalTime * d.fps + 0.001), d.total_frames - 1);
-    if (!videoEl.paused) {
-      if (useRVFC) {
-        animFrameRef.value = videoEl.requestVideoFrameCallback(sync);
-      } else {
-        animFrameRef.value = requestAnimationFrame(() => sync());
-      }
+    if (useRVFC) {
+      animFrameRef.value = videoEl.requestVideoFrameCallback(sync);
+    } else {
+      animFrameRef.value = requestAnimationFrame(() => sync());
     }
   };
   const onPlay  = () => {
@@ -1143,10 +1505,8 @@ watch([videoRef, data], ([videoEl, d]) => {
   };
   videoEl.addEventListener("play", onPlay);
   videoEl.addEventListener("pause", onPause);
-  // NOTE: do NOT attach sync to "seeked". seekToFrame() already sets currentFrame
-  // directly, and having sync() re-derive it from videoEl.currentTime causes
-  // floating-point rounding to snap the counter back to the previous frame,
-  // making << / >> appear to do nothing while paused.
+  // Redraw overlay after the browser finishes seeking (video frame is now visible).
+  videoEl.addEventListener("seeked", () => scheduleDraws(1));
 });
 
 // ── No-video frame simulation ──────────────────────────────────────────────
@@ -1408,7 +1768,7 @@ onUnmounted(() => {
 .btn-play { flex: 1; }
 .btn-play--pause { background: #ff6b6b22; border-color: #ff6b6b44; }
 .btn-play--go { background: #4ecdc422; border-color: #4ecdc444; }
-.btn-rate { flex: 1; font-size: 12px; background: transparent; }
+.btn-rate { flex: 1; min-width: 0; font-size: 12px; background: transparent; overflow: hidden; }
 .btn-rate--active { background: #4ecdc422; border-color: #4ecdc444; }
 
 .time-display {
@@ -1586,8 +1946,8 @@ onUnmounted(() => {
 
 /* ── Right panel ────────────────────────────────────────────────────────── */
 .right-panel {
-  width: 240px; border-left: 1px solid #1a1a24; overflow-y: auto;
-  background: #08080e; padding: 16px 14px; flex-shrink: 0;
+  width: 280px; border-left: 1px solid #1a1a24; overflow: hidden;
+  background: #08080e; flex-shrink: 0; display: flex; flex-direction: column;
 }
 .det-card {
   padding: 10px; margin-bottom: 6px; border-radius: 8px;
