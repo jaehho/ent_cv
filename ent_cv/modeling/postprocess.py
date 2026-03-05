@@ -62,8 +62,10 @@ def load_metadata(detections_path: Path) -> dict:
 
 def save_json(data: object, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
+    tmp = path.with_suffix(".tmp")
+    with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
+    tmp.replace(path)
 
 
 # ── Presence matrix ───────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ dependencies = [
     "cvat-cli",
     "cvat-sdk",
     "django>=6.0.3",
+    "whitenoise",
     "ipython",
     "jupyterlab",
     "loguru",

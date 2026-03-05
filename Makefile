@@ -38,24 +38,53 @@ cvat-superuser: ## Create a CVAT superuser
 
 ## Web app
 WEB_PORT    := 8050
+DJANGO_PORT := 8787
 WEB_SESSION := ent-cv-web
+VENV_PYTHON := $(REPO_ROOT)/.venv/bin/python
 
-.PHONY: web-dev web-bg web-stop web-attach web-route
-web-dev: ## Start the web dev server on :$(WEB_PORT) (foreground)
-	cd web && npm run dev -- --port $(WEB_PORT) --host
+.PHONY: web-django web-vite web-dev web-bg web-stop web-attach web-build web-route
+web-django: ## Start Django dev server on :$(DJANGO_PORT) (foreground)
+	cd $(REPO_ROOT)/web/backend && $(VENV_PYTHON) manage.py runserver $(DJANGO_PORT)
 
-web-bg: ## Start the web dev server on :$(WEB_PORT) in a tmux session
-	tmux new-session -d -s $(WEB_SESSION) -c $(REPO_ROOT)/web 'npm run dev -- --port $(WEB_PORT) --host'
-	echo "Web server started in tmux session '$(WEB_SESSION)' on :$(WEB_PORT)"
+web-vite: ## Start Vite dev server on :$(WEB_PORT) (foreground)
+	cd $(REPO_ROOT)/web/frontend && DJANGO_PORT=$(DJANGO_PORT) npx vite --port $(WEB_PORT) --host
 
-web-stop: ## Stop the web dev server tmux session
+web-dev: ## Start Django + Vite in a tmux session (two panes)
+	tmux new-session -d -s $(WEB_SESSION) -c $(REPO_ROOT) \
+		'cd web/backend && $(VENV_PYTHON) manage.py runserver $(DJANGO_PORT)'
+	tmux split-window -t $(WEB_SESSION) -c $(REPO_ROOT) \
+		'cd web/frontend && DJANGO_PORT=$(DJANGO_PORT) npx vite --port $(WEB_PORT) --host'
+	echo "Web servers started in tmux session '$(WEB_SESSION)'"
+	echo "  Django → :$(DJANGO_PORT)   Vite → :$(WEB_PORT)"
+	echo "  attach: make web-attach"
+
+web-bg: ## Same as web-dev (alias)
+	$(MAKE) web-dev
+
+web-stop: ## Stop the web dev tmux session
 	tmux kill-session -t $(WEB_SESSION)
 
-web-attach: ## Attach to the web dev server tmux session
+web-attach: ## Attach to the web dev tmux session
 	tmux attach -t $(WEB_SESSION)
+
+web-build: ## Build frontend for production
+	cd $(REPO_ROOT)/web/frontend && npx vite build
 
 web-route: ## Show cloudflared ingress rule for entcv.jaehho.com → :$(WEB_PORT)
 	grep -A1 'hostname: entcv.jaehho.com' /etc/cloudflared/config.yml
+
+web-prod: ## Start production stack (Docker Compose)
+	docker compose -f $(REPO_ROOT)/web/docker-compose.yml up -d --build
+
+web-prod-down: ## Stop production stack
+	docker compose -f $(REPO_ROOT)/web/docker-compose.yml down
+
+web-createsuperuser: ## Create a Django superuser (dev: local venv, prod: set WEB_PROD=1)
+	if [ "$(WEB_PROD)" = "1" ]; then \
+		docker compose -f $(REPO_ROOT)/web/docker-compose.yml exec backend python manage.py createsuperuser; \
+	else \
+		cd $(REPO_ROOT)/web/backend && $(VENV_PYTHON) manage.py createsuperuser; \
+	fi
 
 ## Cloudflared tunnel (systemd)
 CLOUDFLARED_SERVICE ?= cloudflared

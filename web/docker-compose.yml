@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ../
+      dockerfile: web/backend/Dockerfile
+    ports:
+      - "8787:8787"
+    volumes:
+      - ../web/backend/db.sqlite3:/app/web/backend/db.sqlite3
+      - /mnt/data/ent_cv/predictions:/mnt/data/ent_cv/predictions:ro
+      - /mnt/data/ent_cv/raw:/mnt/data/ent_cv/raw:ro
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-change-me-in-production}
+      - DJANGO_DEBUG=False
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,entcv.jaehho.com
+      - CSRF_TRUSTED_ORIGINS=https://entcv.jaehho.com
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8050:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
