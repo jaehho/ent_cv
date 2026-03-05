@@ -6,3 +6,4 @@ node_modules/
 /yarn-error.log*
 /pnpm-debug.log*
 .env*.local
+backend/db.sqlite3

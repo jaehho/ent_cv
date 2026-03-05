@@ -37,6 +37,8 @@
         <button class="hdr-btn" @click="newSession">← Cases</button>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
+        <span v-if="username" style="font-size:12px;color:#666">{{ username }}</span>
+        <button class="hdr-btn" @click="emit('logout')" style="font-size:11px">Sign Out</button>
         <div class="mode-toggle">
           <button
             class="mode-btn"
@@ -504,6 +506,9 @@ import {
   ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick, shallowRef,
 } from "vue";
 import { CLASS_COLORS, formatTime } from "../utils/index.js";
+
+defineProps({ username: { type: String, default: "" } });
+const emit = defineEmits(["logout"]);
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const RATES = [0.25, 0.5, 1, 2, 4];

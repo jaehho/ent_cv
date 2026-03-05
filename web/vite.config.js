@@ -4,12 +4,49 @@ import { readdirSync, statSync, createReadStream, readFileSync, writeFileSync } 
 import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import http from "node:http";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PREDICTIONS_DIR = "/mnt/data/ent_cv/predictions";
 const RAW_DIR         = "/mnt/data/ent_cv/raw";
 const PROJECT_ROOT    = join(__dirname, "..");
 const VENV_PYTHON     = join(PROJECT_ROOT, ".venv", "bin", "python");
+const DJANGO_PORT     = parseInt(process.env.DJANGO_PORT || "8787", 10);
+
+/**
+ * Verify the session cookie against Django.
+ * Returns true if authenticated, false otherwise (and sends 401).
+ */
+function checkAuth(req, res) {
+  return new Promise((resolve) => {
+    const cookie = req.headers.cookie || "";
+    const proxyReq = http.request(
+      { hostname: "127.0.0.1", port: DJANGO_PORT, path: "/auth/session/", method: "GET", headers: { cookie } },
+      (proxyRes) => {
+        let body = "";
+        proxyRes.on("data", (c) => { body += c; });
+        proxyRes.on("end", () => {
+          if (proxyRes.statusCode === 200) {
+            resolve(true);
+          } else {
+            res.statusCode = 401;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: "Authentication required" }));
+            resolve(false);
+          }
+        });
+      },
+    );
+    proxyReq.on("error", () => {
+      // Django not running — block access
+      res.statusCode = 503;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "Auth server unavailable" }));
+      resolve(false);
+    });
+    proxyReq.end();
+  });
+}
 
 export default defineConfig({
   plugins: [
@@ -18,8 +55,9 @@ export default defineConfig({
       name: "predictions-api",
       configureServer(server) {
         // GET /api/cases → sorted list of case directories
-        server.middlewares.use("/api/cases", (req, res, next) => {
+        server.middlewares.use("/api/cases", async (req, res, next) => {
           if (req.method !== "GET") return next();
+          if (!(await checkAuth(req, res))) return;
           try {
             const entries = readdirSync(PREDICTIONS_DIR);
             const cases = entries
@@ -41,8 +79,9 @@ export default defineConfig({
         });
 
         // POST /api/postprocess/:case → run ent_cv postprocess on demand
-        server.middlewares.use("/api/postprocess", (req, res, next) => {
+        server.middlewares.use("/api/postprocess", async (req, res, next) => {
           if (req.method !== "POST") return next();
+          if (!(await checkAuth(req, res))) return;
           let body = "";
           req.on("data", chunk => { body += chunk; });
           req.on("end", () => {
@@ -105,8 +144,9 @@ export default defineConfig({
         });
 
         // GET /api/raw/:case/:file.mp4 → serve with Range request support
-        server.middlewares.use("/api/raw", (req, res, next) => {
+        server.middlewares.use("/api/raw", async (req, res, next) => {
           if (req.method !== "GET") return next();
+          if (!(await checkAuth(req, res))) return;
           const safePath = req.url.split("/").filter(s => s && s !== "..").join("/");
           const filePath = join(RAW_DIR, safePath);
           try {
@@ -195,8 +235,9 @@ export default defineConfig({
         }
 
         // GET /data/predictions/:case/... → serve detections.json (enriched) and JPEG frames
-        server.middlewares.use("/data/predictions", (req, res, next) => {
+        server.middlewares.use("/data/predictions", async (req, res, next) => {
           if (req.method !== "GET") return next();
+          if (!(await checkAuth(req, res))) return;
           // Prevent path traversal
           const safePath = req.url.split("/").filter(s => s && s !== "..").join("/");
           const filePath = join(PREDICTIONS_DIR, safePath);
@@ -366,5 +407,11 @@ export default defineConfig({
   ],
   server: {
     allowedHosts: ["entcv.jaehho.com"],
+    proxy: {
+      "/auth": {
+        target: `http://127.0.0.1:${DJANGO_PORT}`,
+        changeOrigin: true,
+      },
+    },
   },
 });
