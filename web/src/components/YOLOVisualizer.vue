@@ -29,8 +29,7 @@
     <!-- Header -->
     <div class="header">
       <div style="display:flex;align-items:center;gap:16px">
-        <span class="header-title">YOLO VIZ</span>
-        <span class="header-meta">{{ data.total_frames }} frames · {{ data.classes.length }} classes</span>
+        <button class="hdr-btn" @click="newSession">← Cases</button>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <button
@@ -50,7 +49,6 @@
             @click="videoMode = 'prediction'"
           >Prediction Video</button>
         </div>
-        <button class="hdr-btn" @click="newSession">← Cases</button>
       </div>
     </div>
 
@@ -87,7 +85,7 @@
           <div class="time-value">
             {{ formatTime(currentTime) }}
           </div>
-          <div class="time-sub">Frame {{ currentFrame }} / {{ data.total_frames - 1 }}</div>
+          <div class="time-sub">Frame {{ currentFrame + 1 }} / {{ data.total_frames }}</div>
         </div>
 
         <!-- Confidence -->
@@ -101,52 +99,59 @@
             style="width:100%;accent-color:#4ecdc4" />
         </div>
 
-        <!-- Zoom -->
-        <div class="section">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <span class="section-label" style="margin-bottom:0">Zoom</span>
-            <span style="font-size:14px;color:#45b7d1;font-weight:600">{{ zoomLevel.toFixed(1) }}x</span>
-          </div>
-          <input type="range" min="1" max="50" step="0.1" :value="zoomLevel"
-            @input="onZoomInput"
-            style="width:100%;accent-color:#45b7d1" />
-        </div>
-
         <!-- Classes -->
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <span class="section-label" style="margin-bottom:0">Classes</span>
-            <button class="text-btn" @click="toggleAllClasses">
-              {{ enabledClasses.size === data.classes.length ? "None" : "All" }}
-            </button>
-          </div>
-          <div
-            v-for="(cls, idx) in data.classes"
-            :key="idx"
-            class="class-row"
-            :style="{ background: enabledClasses.has(idx) ? '#0e0e1a' : 'transparent', opacity: enabledClasses.has(idx) ? 1 : 0.35 }"
-            @click="toggleClass(idx)"
-          >
-            <div class="class-dot" :style="{ background: CLASS_COLORS[idx % CLASS_COLORS.length] }" />
-            <div style="flex:1;min-width:0">
-              <div class="class-name">{{ cls }}</div>
-              <div v-if="showStats && classStats[idx]" class="class-stat">
-                {{ classStats[idx].pct.toFixed(0) }}% frames · avg {{ classStats[idx].avgConf.toFixed(2) }}
+            <div class="custom-dropdown">
+              <span class="section-label" style="margin-bottom:0;margin-right:4px">Sort:</span>
+              <div class="dropdown-trigger" @click="showSortDropdown = !showSortDropdown">
+                <span class="dropdown-value">{{ classSortMode }}</span>
+                <span class="dropdown-chevron">▾</span>
+              </div>
+              <div v-if="showSortDropdown" class="dropdown-menu">
+                <div class="dropdown-item" @click="classSortMode = 'default'; showSortDropdown = false">Default</div>
+                <div class="dropdown-item" @click="classSortMode = 'frequency'; showSortDropdown = false">Frequency</div>
+                <div class="dropdown-item" @click="classSortMode = 'alphabetical'; showSortDropdown = false">Alphabetical</div>
+                <div class="dropdown-item" @click="classSortMode = 'custom'; showSortDropdown = false">Custom</div>
               </div>
             </div>
-            <div v-if="enabledClasses.has(idx) && classStats[idx]" style="width:40px;height:12px;flex-shrink:0">
-              <svg width="40" height="12" viewBox="0 0 40 12">
-                <rect
-                  v-for="(p, i) in sparklines[idx]"
-                  :key="i"
-                  :x="i * 2"
-                  :y="12 - p * 12"
-                  width="1.5"
-                  :height="p * 12"
-                  :fill="CLASS_COLORS[idx % CLASS_COLORS.length]"
-                  opacity="0.7"
-                />
-              </svg>
+          </div>
+          <div
+            v-for="(item, displayIdx) in displayedClasses"
+            :key="item.idx"
+            class="class-row"
+            :class="{ 'class-row--dragging': draggingClassIdx === displayIdx }"
+            :style="{ background: enabledClasses.has(item.idx) ? '#0e0e1a' : 'transparent', opacity: enabledClasses.has(item.idx) ? 1 : 0.35, cursor: classSortMode === 'custom' ? 'move' : 'pointer' }"
+            :draggable="classSortMode === 'custom'"
+            @click="toggleClass(item.idx)"
+            @dblclick.stop="handleClassDoubleClick(item.idx)"
+            @dragstart="handleDragStart($event, displayIdx)"
+            @dragover.prevent="handleDragOver($event, displayIdx)"
+            @drop="handleDrop($event, displayIdx)"
+            @dragend="handleDragEnd"
+          >
+            <div v-if="classSortMode === 'custom'" style="margin-right:6px;color:#666;cursor:grab;user-select:none" @mousedown.stop>⋮⋮</div>
+            <div class="class-dot" :style="{ background: CLASS_COLORS[item.idx % CLASS_COLORS.length] }" />
+            <div style="flex:1;min-width:0">
+              <div class="class-name">{{ item.cls }}</div>
+              <div v-if="showStats && classStats[item.idx]" class="class-stat">
+                {{ classStats[item.idx].pct.toFixed(0) }}% frames
+              </div>
+              <div v-if="showStats && enabledClasses.has(item.idx) && classStats[item.idx]" style="width:100%;height:24px;margin-top:6px">
+                <svg width="100%" height="24" viewBox="0 0 40 24" preserveAspectRatio="none">
+                  <rect
+                    v-for="(p, i) in sparklines[item.idx]"
+                    :key="i"
+                    :x="i * 2"
+                    :y="24 - p * 24"
+                    width="1.5"
+                    :height="p * 24"
+                    :fill="CLASS_COLORS[item.idx % CLASS_COLORS.length]"
+                    opacity="0.7"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
@@ -217,22 +222,22 @@
         <div style="display:flex;border-top:1px solid #1a1a24;flex-shrink:0">
           <div style="width:120px;flex-shrink:0;background:#08080e;border-right:1px solid #1a1a24">
             <div
-              v-for="(cls, idx) in data.classes"
-              :key="idx"
+              v-for="item in displayedClasses"
+              :key="item.idx"
               class="raster-label"
               :style="{
                 height: rasterLabelHeight,
-                color: enabledClasses.has(idx) ? '#999' : '#333'
+                color: enabledClasses.has(item.idx) ? '#999' : '#333'
               }"
             >
               <div
                 class="raster-label-bar"
                 :style="{
                   height: rasterLabelBarHeight,
-                  background: enabledClasses.has(idx) ? CLASS_COLORS[idx % CLASS_COLORS.length] : '#222'
+                  background: enabledClasses.has(item.idx) ? CLASS_COLORS[item.idx % CLASS_COLORS.length] : '#222'
                 }"
               />
-              <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ cls }}</span>
+              <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ item.cls }}</span>
             </div>
           </div>
 
@@ -274,7 +279,7 @@
       </div>
 
       <!-- ── Right Stats Panel ──────────────────────────────────────────── -->
-      <div v-if="showStats" class="right-panel">
+      <div v-if="showStats" class="right-panel" style="display: flex; flex-direction: column">
         <div class="section-label">Frame Analysis</div>
         <div v-if="currentDetections.length === 0" style="font-size:14px;color:#333;padding:20px 0;text-align:center">
           No detections in frame
@@ -306,28 +311,6 @@
           </div>
           <div v-if="d.bbox" style="font-size:11px;color:#444;margin-top:4px">
             bbox: [{{ d.bbox.map(v => v.toFixed(0)).join(", ") }}]
-          </div>
-        </div>
-
-        <div class="section-label" style="margin-top:24px">Session Summary</div>
-        <div
-          v-for="(s, i) in sortedClassStats"
-          :key="i"
-          style="margin-bottom:8px"
-        >
-          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
-            <span style="color:#888">{{ s.name }}</span>
-            <span style="color:#555">{{ s.pct.toFixed(0) }}%</span>
-          </div>
-          <div style="height:3px;background:#1a1a24;border-radius:2px;overflow:hidden">
-            <div
-              :style="{
-                width: `${s.pct}%`,
-                height: '100%',
-                borderRadius: '2px',
-                background: CLASS_COLORS[data.classes.indexOf(s.name) % CLASS_COLORS.length]
-              }"
-            />
           </div>
         </div>
       </div>
@@ -371,6 +354,10 @@ const showPicker        = ref(true);
 const cases             = shallowRef([]);
 const loadingCases      = ref(false);
 const videoMode         = ref('raw');  // 'raw' | 'prediction'
+const classSortMode     = ref('custom');  // 'default' | 'frequency' | 'alphabetical' | 'custom'
+const customOrder       = ref([]);  // array of class indices (empty = not initialized)
+const draggingClassIdx  = ref(null);  // currently dragging class index
+const showSortDropdown  = ref(false);  // sort dropdown visibility
 
 // ── Refs ───────────────────────────────────────────────────────────────────
 const videoRef    = ref(null);
@@ -398,7 +385,11 @@ function scheduleDraws(flags) {
 }
 
 // ── Derived ────────────────────────────────────────────────────────────────
-const currentTime = computed(() => currentFrame.value / data.value.fps);
+const currentTime = computed(() => {
+  const fps = data.value?.fps;
+  if (!fps || isNaN(currentFrame.value)) return 0;
+  return currentFrame.value / fps;
+});
 
 const currentPartRawUrl = computed(() => {
   if (!activeCaseName.value) return null;
@@ -432,8 +423,20 @@ const currentPartTimestamp = computed(() => {
 });
 
 const currentPartName = computed(() => {
-  const entry = frameMap.value.get(currentFrame.value);
-  return entry?.source?.split('/').pop().replace(/\.mp4$/i, '') ?? null;
+  const frame = currentFrame.value;
+  const entry = frameMap.value.get(frame);
+  if (entry) {
+    return entry.source?.split('/').pop().replace(/\.mp4$/i, '') ?? null;
+  }
+  // Fallback: scan partStartFrame for the largest start frame ≤ currentFrame
+  let bestSource = null, bestStart = -1;
+  for (const [source, startFrame] of partStartFrame.value) {
+    if (startFrame <= frame && startFrame > bestStart) {
+      bestStart = startFrame;
+      bestSource = source;
+    }
+  }
+  return bestSource ? bestSource.split('/').pop().replace(/\.mp4$/i, '') : null;
 });
 
 // Sparse lookup: frame number → result entry
@@ -466,10 +469,20 @@ const partStartFrame = computed(() => {
 
 // Start timestamp of whichever part is currently loaded in the video element.
 // Derived from currentFrame so it works correctly during part switches.
+// When currentFrame has no detection entry (sparse map), scan partStartFrame to find
+// whichever part's start frame is the largest value ≤ currentFrame.
 const currentPartStartTs = computed(() => {
-  const entry = frameMap.value.get(currentFrame.value);
-  if (!entry) return 0;
-  return partStartTs.value.get(entry.source) ?? 0;
+  const frame = currentFrame.value;
+  const entry = frameMap.value.get(frame);
+  if (entry) return partStartTs.value.get(entry.source) ?? 0;
+  let bestSource = null, bestStart = -1;
+  for (const [source, startFrame] of partStartFrame.value) {
+    if (startFrame <= frame && startFrame > bestStart) {
+      bestStart = startFrame;
+      bestSource = source;
+    }
+  }
+  return bestSource ? (partStartTs.value.get(bestSource) ?? 0) : 0;
 });
 
 // Precomputed raster label heights (avoid repeated template expressions)
@@ -522,20 +535,16 @@ const classStats = computed(() => {
   const numClasses = data.value.classes.length;
   const enabled = enabledClasses.value;
   const threshold = confidenceThreshold.value;
-  const sampledCount = data.value.results.length || 1;
+  const totalFrames = data.value.total_frames || 1;
 
   // Single pass over all results
   const counts = new Uint32Array(numClasses);
-  const totals = new Float64Array(numClasses);
-  const maxes  = new Float64Array(numClasses);
 
   for (const [, entry] of frameMap.value) {
     for (const det of entry.detections) {
       const cid = det.class_id;
       if (enabled.has(cid) && det.confidence >= threshold) {
         counts[cid]++;
-        totals[cid] += det.confidence;
-        if (det.confidence > maxes[cid]) maxes[cid] = det.confidence;
       }
     }
   }
@@ -543,15 +552,51 @@ const classStats = computed(() => {
   return data.value.classes.map((name, idx) => ({
     name,
     count: counts[idx],
-    avgConf: counts[idx] ? totals[idx] / counts[idx] : 0,
-    maxConf: maxes[idx],
-    pct: counts[idx] / sampledCount * 100,
+    pct: counts[idx] / totalFrames * 100,
   }));
 });
 
 const sortedClassStats = computed(() =>
   classStats.value.filter(s => s.count > 0).sort((a, b) => b.pct - a.pct)
 );
+
+// Classes list display order — drives both left panel AND raster row order
+const displayedClasses = computed(() => {
+  if (!data.value) return [];
+  const mode = classSortMode.value;
+  const classes = data.value.classes;
+  
+  if (mode === 'frequency') {
+    // Sort by descending pct
+    return classStats.value
+      .map((stats, idx) => ({ cls: stats.name, idx, pct: stats.pct }))
+      .sort((a, b) => b.pct - a.pct);
+  }
+  
+  if (mode === 'alphabetical') {
+    // Sort alphabetically by class name
+    return classes
+      .map((cls, idx) => ({ cls, idx }))
+      .sort((a, b) => a.cls.localeCompare(b.cls));
+  }
+  
+  if (mode === 'custom' && customOrder.value.length === classes.length) {
+    // Use custom order from localStorage
+    return customOrder.value.map(idx => ({ cls: classes[idx], idx }));
+  }
+  
+  // Default: preserve detections.json order
+  return classes.map((cls, idx) => ({ cls, idx }));
+});
+
+// Map from original class index to display row index (for raster drawing)
+const classIdxToRowIdx = computed(() => {
+  const map = new Map();
+  displayedClasses.value.forEach((item, rowIdx) => {
+    map.set(item.idx, rowIdx);
+  });
+  return map;
+});
 
 // ── Optimized: memoized sparklines (computed once, not per-class in render) ─
 const sparklines = computed(() => {
@@ -609,6 +654,10 @@ async function loadCase(caseName) {
     data.value = parsed;
     activeCaseName.value = caseName;
     enabledClasses.value = new Set(parsed.classes.map((_, i) => i));
+    // Initialize custom order if not matching or empty
+    if (customOrder.value.length !== parsed.classes.length) {
+      customOrder.value = parsed.classes.map((_, i) => i);
+    }
     showPicker.value = false;
     videoSrc.value = null;
     currentFrame.value = 0;
@@ -627,12 +676,20 @@ function newSession() {
 
 function seekToFrame(frame) {
   if (!data.value) return;
+  // Capture the current part's start timestamp BEFORE updating currentFrame,
+  // because currentPartStartTs depends on currentFrame (via frameMap lookup).
+  const prevPartStartTs = currentPartStartTs.value;
   currentFrame.value = frame;
   if (videoRef.value && videoSrc.value) {
     const entry = frameMap.value.get(frame);
     const fps = data.value.fps;
-    const startTs = entry ? (partStartTs.value.get(entry.source) ?? 0) : 0;
-    videoRef.value.currentTime = entry ? entry.frame / fps - startTs : frame / fps;
+    if (entry) {
+      const startTs = partStartTs.value.get(entry.source) ?? 0;
+      videoRef.value.currentTime = entry.frame / fps - startTs;
+    } else {
+      // Frame has no detection — seek within the same part using captured start ts
+      videoRef.value.currentTime = frame / fps - prevPartStartTs;
+    }
   }
 }
 
@@ -655,11 +712,56 @@ function toggleClass(idx) {
   enabledClasses.value = next;
 }
 
+function handleClassDoubleClick(idx) {
+  if (!data.value) return;
+  // If only this class is enabled, restore all classes
+  if (enabledClasses.value.size === 1 && enabledClasses.value.has(idx)) {
+    enabledClasses.value = new Set(data.value.classes.map((_, i) => i));
+  } else {
+    // Solo this class (enable only this one)
+    enabledClasses.value = new Set([idx]);
+  }
+}
+
 function toggleAllClasses() {
   if (!data.value) return;
   enabledClasses.value = enabledClasses.value.size === data.value.classes.length
     ? new Set()
     : new Set(data.value.classes.map((_, i) => i));
+}
+
+// ── Drag-to-reorder handlers (custom mode only) ──────────────────────
+function handleDragStart(e, displayIdx) {
+  draggingClassIdx.value = displayIdx;
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e, displayIdx) {
+  if (draggingClassIdx.value === null) return;
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDrop(e, targetIdx) {
+  e.preventDefault();
+  if (draggingClassIdx.value === null || draggingClassIdx.value === targetIdx) return;
+  
+  // Reorder customOrder array
+  const newOrder = [...customOrder.value];
+  const [removed] = newOrder.splice(draggingClassIdx.value, 1);
+  newOrder.splice(targetIdx, 0, removed);
+  customOrder.value = newOrder;
+}
+
+function handleDragEnd() {
+  draggingClassIdx.value = null;
+}
+
+function handleClickOutside(e) {
+  if (!showSortDropdown.value) return;
+  const dropdown = e.target.closest('.custom-dropdown');
+  if (!dropdown) {
+    showSortDropdown.value = false;
+  }
 }
 
 function onZoomInput(e) {
@@ -771,6 +873,9 @@ function drawRaster() {
     ctx.beginPath(); ctx.moveTo(0, i * rowH); ctx.lineTo(W, i * rowH); ctx.stroke();
   }
 
+  // Build class index to display row mapping
+  const clsToRow = classIdxToRowIdx.value;
+
   // Only iterate sparse entries in the visible range
   for (const [f, row] of sparse) {
     if (f < startFrame || f >= endFrame) continue;
@@ -778,10 +883,11 @@ function drawRaster() {
     const barW = Math.max(pxPerFrame, 1);
     for (let c = 0; c < numClasses; c++) {
       if (row[c] > 0) {
+        const displayRow = clsToRow.get(c) ?? c;  // fallback to original index
         const alpha = 0.3 + row[c] * 0.7;
         const rgb = CLASS_COLORS_RGB[c % CLASS_COLORS_RGB.length];
         ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
-        ctx.fillRect(x, c * rowH + 1, barW, rowH - 2);
+        ctx.fillRect(x, displayRow * rowH + 1, barW, rowH - 2);
       }
     }
   }
@@ -865,8 +971,11 @@ function drawMinimap() {
 }
 
 // ── Reactive drawing (batched via RAF) ─────────────────────────────────────
+// Also watch overlayRef so that when the canvas is (re-)mounted — e.g. when
+// switching back to Raw mode — we redraw immediately instead of waiting for
+// the next currentDetections / videoRef change.
 watch(
-  [currentDetections, videoRef],
+  [currentDetections, videoRef, overlayRef],
   ([, vid]) => {
     if (vid && !vid.videoWidth) {
       vid.addEventListener("loadedmetadata", () => scheduleDraws(1), { once: true });
@@ -877,12 +986,24 @@ watch(
   { flush: "post" }
 );
 
+// Persist custom order to localStorage
+watch(customOrder, (order) => {
+  if (order.length > 0) {
+    localStorage.setItem('yolo-visualizer-custom-order', JSON.stringify(order));
+  }
+}, { deep: true });
+
 // Single watcher for raster + minimap (they share most deps)
 watch(
   [filteredSparseMap, () => currentFrame.value, () => zoomLevel.value, () => panOffset.value, () => hoveredFrame.value],
   () => scheduleDraws(6),  // 2 | 4 = raster + minimap
   { flush: "post" }
 );
+
+// Redraw raster when display order changes
+watch(displayedClasses, () => {
+  scheduleDraws(2);  // 2=raster
+}, { flush: "post" });
 
 // ── Video part switching ───────────────────────────────────────────────────
 // Stop & unload video when entering prediction mode; re-trigger load on return to raw.
@@ -915,14 +1036,18 @@ watch([videoRef, data], ([videoEl, d]) => {
   if (!videoEl || !d) return;
   const sync = () => {
     const globalTime = videoEl.currentTime + currentPartStartTs.value;
-    currentFrame.value = Math.min(Math.floor(globalTime * d.fps), d.total_frames - 1);
+    // +0.001 guards against FP rounding (e.g. floor(frame/fps*fps) == frame-1)
+    currentFrame.value = Math.min(Math.floor(globalTime * d.fps + 0.001), d.total_frames - 1);
     if (!videoEl.paused) animFrameRef.value = requestAnimationFrame(sync);
   };
   const onPlay  = () => { isPlaying.value = true;  sync(); };
   const onPause = () => { isPlaying.value = false; cancelAnimationFrame(animFrameRef.value); };
   videoEl.addEventListener("play", onPlay);
   videoEl.addEventListener("pause", onPause);
-  videoEl.addEventListener("seeked", sync);
+  // NOTE: do NOT attach sync to "seeked". seekToFrame() already sets currentFrame
+  // directly, and having sync() re-derive it from videoEl.currentTime causes
+  // floating-point rounding to snap the counter back to the previous frame,
+  // making << / >> appear to do nothing while paused.
 });
 
 // ── No-video frame simulation ──────────────────────────────────────────────
@@ -1052,6 +1177,10 @@ async function loadFromUrl(url) {
     const parsed = await res.json();
     data.value = parsed;
     enabledClasses.value = new Set(parsed.classes.map((_, i) => i));
+    // Initialize custom order if not matching or empty
+    if (customOrder.value.length !== parsed.classes.length) {
+      customOrder.value = parsed.classes.map((_, i) => i);
+    }
     showPicker.value = false;
   } catch (err) {
     alert(`Failed to load ${url}: ${err.message}`);
@@ -1062,6 +1191,17 @@ onMounted(() => {
   window.addEventListener("mousemove", onGlobalMouseMove);
   window.addEventListener("mouseup", onGlobalMouseUp);
   window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("click", handleClickOutside);
+
+  // Load custom order from localStorage
+  const saved = localStorage.getItem('yolo-visualizer-custom-order');
+  if (saved) {
+    try {
+      customOrder.value = JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse custom order from localStorage:', e);
+    }
+  }
 
   const params = new URLSearchParams(window.location.search);
   const dataUrl = params.get("data");
@@ -1074,6 +1214,7 @@ onUnmounted(() => {
   window.removeEventListener("mousemove", onGlobalMouseMove);
   window.removeEventListener("mouseup", onGlobalMouseUp);
   window.removeEventListener("keydown", onKeyDown);
+  window.removeEventListener("click", handleClickOutside);
   if (_rafId) cancelAnimationFrame(_rafId);
 });
 </script>
@@ -1127,7 +1268,6 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.header-meta { font-size: 14px; color: #444; }
 .hdr-btn {
   padding: 6px 14px; border: 1px solid #2a2a35; border-radius: 5px;
   color: #999; font-size: 13px; cursor: pointer; background: transparent;
@@ -1178,9 +1318,74 @@ onUnmounted(() => {
   font-size: 12px; color: #666; background: none; border: none;
   cursor: pointer; font-family: inherit; padding: 2px 6px;
 }
+
+.custom-dropdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dropdown-value {
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #555;
+  transition: color 0.15s;
+}
+
+.dropdown-trigger:hover .dropdown-value {
+  color: #777;
+}
+
+.dropdown-chevron {
+  margin-left: 4px;
+  font-size: 10px;
+  color: #555;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #0c0c16;
+  border: 1px solid #2a2a35;
+  border-radius: 4px;
+  padding: 4px 0;
+  z-index: 1000;
+  min-width: 120px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dropdown-item {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #999;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.dropdown-item:hover {
+  background: #1a1a24;
+  color: #ccc;
+}
+
 .class-row {
   display: flex; align-items: center; gap: 8px; padding: 7px 8px;
   margin-bottom: 2px; border-radius: 6px; cursor: pointer; transition: all 0.15s;
+}
+.class-row--dragging {
+  opacity: 0.5;
 }
 .class-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 .class-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

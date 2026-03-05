@@ -1,24 +1,21 @@
-operation: postprocess
+operation: predict
 
 defaults:
   weights: /mnt/data/ent_cv/models/v1/weights/best.pt
-  data: /mnt/data/ent_cv/datasets/combined_new/data_with_val.yaml
-
-  # optional (defaults shown)
-  conf: 0.001
-  iou: 0.6
-  device: "0"
-  half: false
-  split: val       # "val", "test", or "train"
-  save_json: false
   verbose: true
-  # imgsz:         # defaults to value from args.yaml, then 640
-  # batch:         # defaults to ultralytics default
 
 runs:
-  - raw_json: /mnt/data/ent_cv/predictions/20251113_02/detections.json
-  - raw_json: /mnt/data/ent_cv/predictions/20251124_01/detections.json
-  - raw_json: /mnt/data/ent_cv/predictions/20251204_01/detections.json
-  - raw_json: /mnt/data/ent_cv/predictions/20251208_01/detections.json
-  - raw_json: /mnt/data/ent_cv/predictions/20251208_02/detections.json
-  - raw_json: /mnt/data/ent_cv/predictions/20251210_02/detections.json
+  # - source: /mnt/data/ent_cv/raw/test
+  - source: /mnt/data/ent_cv/raw/20251113_02
+  - source: /mnt/data/ent_cv/raw/20251124_01
+  - source: /mnt/data/ent_cv/raw/20251204_01
+  - source: /mnt/data/ent_cv/raw/20251208_01
+  - source: /mnt/data/ent_cv/raw/20251208_02
+  - source: /mnt/data/ent_cv/raw/20251210_02
+  - source: /mnt/data/ent_cv/raw/20251210_03
+  - source: /mnt/data/ent_cv/raw/20251217_02
+  - source: /mnt/data/ent_cv/raw/20251217_03
+  - source: /mnt/data/ent_cv/raw/20251218_02
+  - source: /mnt/data/ent_cv/raw/20260128_01
+  - source: /mnt/data/ent_cv/raw/20260205_01
+  - source: /mnt/data/ent_cv/raw/20260205_03

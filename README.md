@@ -1,1 +1,0 @@
-when running extract_frames.py, export to batches so importing to cvat doesn't import already annotated frames.

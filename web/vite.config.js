@@ -135,7 +135,17 @@ export default defineConfig({
               let fps, total_frames;
               try {
                 const meta = JSON.parse(readFileSync(join(PREDICTIONS_DIR, caseName, "metadata.json"), "utf-8"));
-                fps = meta.fps ?? null;
+                if (meta.fps != null) {
+                  // fps may be a fraction string like "30000/1001"
+                  const fpsStr = String(meta.fps);
+                  if (fpsStr.includes("/")) {
+                    const [num, den] = fpsStr.split("/").map(Number);
+                    fps = den ? num / den : num;
+                  } else {
+                    fps = Number(fpsStr);
+                  }
+                  if (!fps || !isFinite(fps)) fps = null;
+                }
                 total_frames = meta.total_frames ?? null;
               } catch { /* no metadata */ }
               if (!fps) fps = probeVideoFps(join(rawCaseDir, mp4s[0]));
@@ -159,7 +169,10 @@ export default defineConfig({
                   }
                 }
               }
-              const classes = [...classMap.entries()].sort((a, b) => a[0] - b[0]).map(([, name]) => name);
+              const sortedClassEntries = [...classMap.entries()].sort((a, b) => a[0] - b[0]);
+              const classes = sortedClassEntries.map(([, name]) => name);
+              // Remap original (sparse) class IDs → 0-based index into `classes`
+              const classIndexRemap = new Map(sortedClassEntries.map(([origId], idx) => [origId, idx]));
 
               let results;
               if (isFlat) {
@@ -183,11 +196,12 @@ export default defineConfig({
                 const frameGroups = new Map();
                 for (const d of rawDetections) {
                   if (!frameGroups.has(d.frame)) frameGroups.set(d.frame, []);
+                  const b = d.box;
                   frameGroups.get(d.frame).push({
-                    class_id: d.class,
+                    class_id: classIndexRemap.get(d.class) ?? d.class,
                     class_name: d.name,
                     confidence: d.confidence,
-                    box: d.box,
+                    bbox: b ? [b.x1, b.y1, b.x2, b.y2] : null,
                   });
                 }
                 results = [...frameGroups.entries()]

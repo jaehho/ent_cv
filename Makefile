@@ -111,3 +111,6 @@ compare: ## Compare trained models in MODELS_DIR
 
 postprocess: ## Run post-processing on predictions (set SOURCE=)
 	uv run ent-cv postprocess --raw-json $(PREDICTIONS)/detections.json
+
+batch:
+	uv run ent-cv batch /home/jaeho/ent_cv/ent_cv/modeling/configs/batch.yaml
