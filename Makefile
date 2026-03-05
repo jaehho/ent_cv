@@ -74,10 +74,26 @@ web-route: ## Show cloudflared ingress rule for entcv.jaehho.com → :$(WEB_PORT
 	grep -A1 'hostname: entcv.jaehho.com' /etc/cloudflared/config.yml
 
 web-prod: ## Start production stack (Docker Compose)
-	docker compose -f $(REPO_ROOT)/web/docker-compose.yml up -d --build
+	docker compose --env-file $(REPO_ROOT)/.env -f $(REPO_ROOT)/web/docker-compose.yml up -d --build
 
 web-prod-down: ## Stop production stack
 	docker compose -f $(REPO_ROOT)/web/docker-compose.yml down
+
+web-prod-logs: ## Show production stack logs
+	docker compose -f $(REPO_ROOT)/web/docker-compose.yml logs -f --tail=50
+
+web-migrate: ## Run Django migrations (prod: WEB_PROD=1)
+	if [ "$(WEB_PROD)" = "1" ]; then \
+		docker compose -f $(REPO_ROOT)/web/docker-compose.yml exec backend python manage.py migrate --noinput; \
+	else \
+		cd $(REPO_ROOT)/web/backend && $(VENV_PYTHON) manage.py migrate --noinput; \
+	fi
+
+web-rollback: ## Rollback production to the previous image
+	echo "Rolling back to previous images..."
+	docker compose -f $(REPO_ROOT)/web/docker-compose.yml down
+	docker compose -f $(REPO_ROOT)/web/docker-compose.yml up -d
+	echo "Rollback complete (using cached images). Run 'make web-migrate' if needed."
 
 web-createsuperuser: ## Create a Django superuser (dev: local venv, prod: set WEB_PROD=1)
 	if [ "$(WEB_PROD)" = "1" ]; then \
@@ -143,3 +159,13 @@ postprocess: ## Run post-processing on predictions (set SOURCE=)
 
 batch:
 	uv run ent-cv batch /home/jaeho/ent_cv/ent_cv/modeling/configs/batch.yaml
+
+## Testing & Linting
+lint: ## Run all linters (Ruff + ESLint)
+	uv run ruff check .
+	uv run ruff format --check .
+	cd $(REPO_ROOT)/web/frontend && npx eslint .
+
+test: ## Run all tests (pytest + vitest)
+	uv run pytest web/backend/ --tb=short -q
+	cd $(REPO_ROOT)/web/frontend && npx vitest run

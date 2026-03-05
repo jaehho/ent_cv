@@ -1,9 +1,9 @@
+from functools import wraps
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
-from functools import wraps
-from pathlib import Path
 
 from django.http import (
     FileResponse,
@@ -18,12 +18,15 @@ from django.views.decorators.http import require_GET, require_POST
 
 def api_login_required(view_func):
     """Return 401 JSON instead of redirecting to a login page."""
+
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return JsonResponse({"error": "Authentication required"}, status=401)
         return view_func(request, *args, **kwargs)
+
     return wrapper
+
 
 PREDICTIONS_DIR = Path(os.environ.get("PREDICTIONS_DIR", "/mnt/data/ent_cv/predictions"))
 RAW_DIR = Path(os.environ.get("RAW_DIR", "/mnt/data/ent_cv/raw"))
@@ -48,9 +51,21 @@ def _probe_video_fps(video_path: str) -> float:
     if video_path in _fps_cache:
         return _fps_cache[video_path]
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0",
-         "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", video_path],
-        capture_output=True, text=True, timeout=30,
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=r_frame_rate",
+            "-of",
+            "csv=p=0",
+            video_path,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     raw = result.stdout.strip().rstrip(",")
     if not raw:
@@ -69,9 +84,21 @@ def _probe_video_frame_count(video_path: str) -> int:
         return _frame_count_cache[video_path]
     # Fast path: nb_frames from container index
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0",
-         "-show_entries", "stream=nb_frames", "-of", "csv=p=0", video_path],
-        capture_output=True, text=True, timeout=30,
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=nb_frames",
+            "-of",
+            "csv=p=0",
+            video_path,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     raw = result.stdout.strip().rstrip(",")
     if raw and raw != "N/A" and raw.isdigit():
@@ -80,10 +107,22 @@ def _probe_video_frame_count(video_path: str) -> int:
         return count
     # Slow fallback: count every packet
     result2 = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0",
-         "-count_packets", "-show_entries", "stream=nb_read_packets",
-         "-of", "csv=p=0", video_path],
-        capture_output=True, text=True, timeout=120,
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-count_packets",
+            "-show_entries",
+            "stream=nb_read_packets",
+            "-of",
+            "csv=p=0",
+            video_path,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     raw2 = result2.stdout.strip().rstrip(",")
     if not raw2:
@@ -103,7 +142,8 @@ def list_cases(request):
     try:
         cases = sorted(
             [
-                d.name for d in PREDICTIONS_DIR.iterdir()
+                d.name
+                for d in PREDICTIONS_DIR.iterdir()
                 if d.is_dir() and (d / "detections.json").exists()
             ],
             reverse=True,
@@ -117,7 +157,7 @@ def list_cases(request):
 @api_login_required
 def detections(request, case):
     """Serve enriched detections.json (with fps, class remapping, part boundaries).
-    
+
     Query params:
         mode=filtered  → read filtered_detections.json instead of detections.json
     """
@@ -237,11 +277,13 @@ def detections(request, case):
                 count = _probe_video_frame_count(mp4_path)
                 new_part_frames[mp4] = count
                 wrote_new_counts = True
-            part_boundaries.append({
-                "path": mp4_path,
-                "startFrame": cumulative,
-                "endFrame": cumulative + count - 1,
-            })
+            part_boundaries.append(
+                {
+                    "path": mp4_path,
+                    "startFrame": cumulative,
+                    "endFrame": cumulative + count - 1,
+                }
+            )
             cumulative += count
 
         # Persist newly probed counts
@@ -266,12 +308,14 @@ def detections(request, case):
             if fr not in frame_groups:
                 frame_groups[fr] = []
             b = d.get("box")
-            frame_groups[fr].append({
-                "class_id": class_index_remap.get(d.get("class"), d.get("class")),
-                "class_name": d.get("name", ""),
-                "confidence": d.get("confidence"),
-                "bbox": [b["x1"], b["y1"], b["x2"], b["y2"]] if b else None,
-            })
+            frame_groups[fr].append(
+                {
+                    "class_id": class_index_remap.get(d.get("class"), d.get("class")),
+                    "class_name": d.get("name", ""),
+                    "confidence": d.get("confidence"),
+                    "bbox": [b["x1"], b["y1"], b["x2"], b["y2"]] if b else None,
+                }
+            )
 
         results = [
             {
@@ -288,9 +332,12 @@ def detections(request, case):
         total_frames = len(results)
 
     parts = (
-        [{"source": b["path"], "startFrame": b["startFrame"], "endFrame": b["endFrame"]}
-         for b in part_boundaries]
-        if is_flat and part_boundaries else None
+        [
+            {"source": b["path"], "startFrame": b["startFrame"], "endFrame": b["endFrame"]}
+            for b in part_boundaries
+        ]
+        if is_flat and part_boundaries
+        else None
     )
 
     enriched = {
@@ -326,8 +373,10 @@ def predictions_file(request, case, path):
 
     ext = file_path.suffix.lower()
     content_types = {
-        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".png": "image/png", ".json": "application/json",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".json": "application/json",
     }
     content_type = content_types.get(ext, "application/octet-stream")
     return FileResponse(open(file_path, "rb"), content_type=content_type)

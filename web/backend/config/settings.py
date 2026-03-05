@@ -1,6 +1,6 @@
 import os
-import sys
 from pathlib import Path
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -9,14 +9,18 @@ _PROJECT_ROOT = str(BASE_DIR.parent.parent)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-tj8+9^1u--x%3_*1+js$$rwe^t6_r7s4dzdeinfpn@0e*d=k0+",
-)
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if os.environ.get("DJANGO_DEBUG", "True").lower() in ("true", "1", "yes"):
+        SECRET_KEY = "django-insecure-dev-only-key-do-not-use-in-production"
+    else:
+        raise ValueError("DJANGO_SECRET_KEY environment variable is required when DEBUG=False")
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in ("true", "1", "yes")
 
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,entcv.jaehho.com").split(",")
+ALLOWED_HOSTS = os.environ.get(
+    "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,entcv.jaehho.com"
+).split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -61,12 +65,32 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
-    "default": {
+DATABASES = {}
+_DATABASE_URL = os.environ.get("DATABASE_URL")
+if _DATABASE_URL:
+    # PostgreSQL: DATABASE_URL=postgres://user:pass@host:port/dbname
+    import re
+
+    m = re.match(
+        r"postgres(?:ql)?://(?P<user>[^:]+):(?P<pass>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>.+)",
+        _DATABASE_URL,
+    )
+    if m:
+        DATABASES["default"] = {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": m.group("name"),
+            "USER": m.group("user"),
+            "PASSWORD": m.group("pass"),
+            "HOST": m.group("host"),
+            "PORT": m.group("port"),
+        }
+    else:
+        raise ValueError(f"Cannot parse DATABASE_URL: {_DATABASE_URL}")
+else:
+    DATABASES["default"] = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     }
-}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -100,3 +124,11 @@ LOGIN_URL = "/auth/session/"
 
 # No static files needed — the Vite app handles the frontend
 STATIC_URL = "static/"
+
+# ── Production security hardening ────────────────────────────────────────
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True

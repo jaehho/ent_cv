@@ -5,6 +5,10 @@ const DJANGO_PORT = parseInt(process.env.DJANGO_PORT || "8787", 10);
 
 export default defineConfig({
   plugins: [vue()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+  },
   server: {
     allowedHosts: ["entcv.jaehho.com"],
     proxy: {

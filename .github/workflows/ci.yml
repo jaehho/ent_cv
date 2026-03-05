@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["*.md", "reports/**"]
+  pull_request:
+    branches: [main]
+    paths-ignore: ["*.md", "reports/**"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-python:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  lint-frontend:
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: web/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+      - run: npm ci
+      - run: npx eslint .
+
+  test-backend:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen --extra test
+      - run: uv run pytest web/backend/ --cov=api --cov-report=xml --tb=short -q
+
+  test-frontend:
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: web/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+      - run: npm ci
+      - run: npx vitest run
+
+  build-images:
+    runs-on: self-hosted
+    needs: [lint-python, lint-frontend, test-backend, test-frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker images
+        run: docker compose -f web/docker-compose.yml build
+        env:
+          DJANGO_SECRET_KEY: build-time-placeholder
+          POSTGRES_PASSWORD: build-time-placeholder

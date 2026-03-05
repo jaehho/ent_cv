@@ -1,0 +1,56 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["*.md", "reports/**", "runner/**"]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    needs: []
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write .env for Docker Compose
+        run: |
+          cat > web/.env <<EOF
+          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          POSTGRES_USER=entcv
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          EOF
+
+      - name: Deploy
+        working-directory: web
+        run: |
+          docker compose --env-file .env down
+          docker compose --env-file .env up -d --build --wait
+
+      - name: Run database migrations
+        working-directory: web
+        run: |
+          docker compose --env-file .env exec -T backend python manage.py migrate --noinput
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl -fsS -o /dev/null http://localhost:8050/ || \
+            (echo "Health check failed"; docker compose -f web/docker-compose.yml logs --tail=50; exit 1)
+
+      - name: Tag deployment
+        run: |
+          git tag "deploy-$(date +%Y%m%d-%H%M%S)" || true
+          git push --tags || true
+
+      - name: Cleanup old images
+        if: success()
+        run: docker image prune -f
+
+      - name: Cleanup .env
+        if: always()
+        run: rm -f web/.env

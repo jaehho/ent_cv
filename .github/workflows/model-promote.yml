@@ -1,0 +1,66 @@
+name: Promote Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_path:
+        description: "Path to the model directory under /mnt/data/ent_cv/models/ (e.g. yolo26x_20260227_081741)"
+        required: true
+        type: string
+
+jobs:
+  validate:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify model exists
+        run: |
+          MODEL_DIR="/mnt/data/ent_cv/models/${{ inputs.model_path }}"
+          WEIGHTS="${MODEL_DIR}/weights/best.pt"
+          if [ ! -f "${WEIGHTS}" ]; then
+            echo "::error::Model not found at ${WEIGHTS}"
+            exit 1
+          fi
+          echo "Model found: $(ls -lh "${WEIGHTS}")"
+          echo "WEIGHTS=${WEIGHTS}" >> "$GITHUB_ENV"
+          echo "MODEL_DIR=${MODEL_DIR}" >> "$GITHUB_ENV"
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Validate model file
+        run: |
+          uv sync --frozen
+          uv run python -c "
+          import torch, sys
+          w = '${WEIGHTS}'
+          try:
+              ckpt = torch.load(w, map_location='cpu', weights_only=False)
+              print(f'Loaded checkpoint: {type(ckpt)}')
+              if isinstance(ckpt, dict):
+                  print(f'Keys: {list(ckpt.keys())[:10]}')
+              print('Model validation PASSED')
+          except Exception as e:
+              print(f'Model validation FAILED: {e}')
+              sys.exit(1)
+          "
+
+  promote:
+    runs-on: self-hosted
+    needs: validate
+    environment: production
+    steps:
+      - name: Promote model to production
+        run: |
+          SRC="/mnt/data/ent_cv/models/${{ inputs.model_path }}/weights/best.pt"
+          DEST="/mnt/data/ent_cv/models/v1/weights/best.pt"
+
+          # Backup current model
+          if [ -f "${DEST}" ]; then
+            BACKUP="${DEST}.backup.$(date +%Y%m%d-%H%M%S)"
+            cp "${DEST}" "${BACKUP}"
+            echo "Backed up existing model to ${BACKUP}"
+          fi
+
+          cp "${SRC}" "${DEST}"
+          echo "Promoted ${{ inputs.model_path }} → v1"
