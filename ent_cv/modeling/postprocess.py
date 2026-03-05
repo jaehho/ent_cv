@@ -411,20 +411,27 @@ def compute_summary(
     for i, frame_idx in enumerate(sorted_labeled):
         present = frame_groups[frame_idx]
 
-        # Onset: class starts a new run (was absent in the immediately preceding frame)
+        # Onset: class starts a new run (was absent in the immediately preceding frame).
+        # Collect onset classes BEFORE updating class_last_frame so the check is accurate.
+        onset_classes: set[str] = set()
         for cls in present:
             if class_last_frame.get(cls, -2) < frame_idx - 1:
                 onset_counts[cls] = onset_counts.get(cls, 0) + 1
+                onset_classes.add(cls)
             class_last_frame[cls] = frame_idx
 
-        # Transitions: all (from_cls → to_cls) pairs across the previous → current labeled frame
-        if i > 0:
+        # Transitions: only record when a class starts a new run (onset).
+        # One transition per onset, from each class in the preceding labeled frame.
+        # This ensures sum(matrix[A][B] for all A) == onset_count[B] (minus the
+        # very first labeled frame which has no preceding state).
+        # Gaps with no detections are naturally collapsed — frames absent from
+        # frame_groups never appear in sorted_labeled, so None is never its own state.
+        if i > 0 and onset_classes:
             prev_present = frame_groups[sorted_labeled[i - 1]]
-            for from_cls in prev_present:
-                for to_cls in present:
-                    if from_cls != to_cls:
-                        row = transition_matrix.setdefault(from_cls, {})
-                        row[to_cls] = row.get(to_cls, 0) + 1
+            for to_cls in onset_classes:
+                for from_cls in prev_present:
+                    row = transition_matrix.setdefault(from_cls, {})
+                    row[to_cls] = row.get(to_cls, 0) + 1
 
     total_sec = round(T * sec_per_frame, 3)
     return {

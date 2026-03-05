@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
-import { readdirSync, statSync, createReadStream, readFileSync } from "node:fs";
+import { readdirSync, statSync, createReadStream, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,8 +24,11 @@ export default defineConfig({
             const entries = readdirSync(PREDICTIONS_DIR);
             const cases = entries
               .filter(name => {
-                try { return statSync(join(PREDICTIONS_DIR, name)).isDirectory(); }
-                catch { return false; }
+                try {
+                  if (!statSync(join(PREDICTIONS_DIR, name)).isDirectory()) return false;
+                  statSync(join(PREDICTIONS_DIR, name, 'detections.json'));
+                  return true;
+                } catch { return false; }
               })
               .sort()
               .reverse(); // newest first (names are date-prefixed)
@@ -160,7 +163,23 @@ export default defineConfig({
         const frameCountCacheMap = new Map();
         function probeVideoFrameCount(videoPath) {
           if (frameCountCacheMap.has(videoPath)) return frameCountCacheMap.get(videoPath);
-          const probe = spawnSync("ffprobe", [
+          // Fast path: nb_frames is stored in the MP4 container index (instant read)
+          const probe1 = spawnSync("ffprobe", [
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=nb_frames",
+            "-of", "csv=p=0",
+            videoPath,
+          ]);
+          const raw1 = probe1.stdout?.toString().trim();
+          if (raw1 && raw1 !== "N/A" && /^\d+$/.test(raw1)) {
+            const count = parseInt(raw1, 10);
+            frameCountCacheMap.set(videoPath, count);
+            return count;
+          }
+          // Slow fallback: count every packet (reads the whole file — avoid if possible)
+          console.warn(`[predictions-api] nb_frames unavailable for ${videoPath}, falling back to -count_packets (slow)`);
+          const probe2 = spawnSync("ffprobe", [
             "-v", "error",
             "-select_streams", "v:0",
             "-count_packets",
@@ -168,9 +187,9 @@ export default defineConfig({
             "-of", "csv=p=0",
             videoPath,
           ]);
-          const raw = probe.stdout?.toString().trim();
-          if (!raw) throw new Error(`ffprobe returned no frame count for ${videoPath}`);
-          const count = parseInt(raw, 10);
+          const raw2 = probe2.stdout?.toString().trim();
+          if (!raw2) throw new Error(`ffprobe returned no frame count for ${videoPath}`);
+          const count = parseInt(raw2, 10);
           frameCountCacheMap.set(videoPath, count);
           return count;
         }
@@ -198,9 +217,12 @@ export default defineConfig({
               if (mp4s.length === 0) throw new Error(`No raw .mp4 files found for case ${caseName}`);
 
               // Try to read fps + total_frames from metadata.json first
-              let fps, total_frames;
+              let fps, total_frames, cachedPartFrames;
+              const metaPath = join(PREDICTIONS_DIR, caseName, "metadata.json");
+              let metaRaw = {};
               try {
-                const meta = JSON.parse(readFileSync(join(PREDICTIONS_DIR, caseName, "metadata.json"), "utf-8"));
+                metaRaw = JSON.parse(readFileSync(metaPath, "utf-8"));
+                const meta = metaRaw;
                 if (meta.fps != null) {
                   // fps may be a fraction string like "30000/1001"
                   const fpsStr = String(meta.fps);
@@ -213,6 +235,8 @@ export default defineConfig({
                   if (!fps || !isFinite(fps)) fps = null;
                 }
                 total_frames = meta.total_frames ?? null;
+                // Cached per-part frame counts (keyed by filename, not full path)
+                cachedPartFrames = meta.part_frames ?? null;
               } catch { /* no metadata */ }
               if (!fps) fps = probeVideoFps(join(rawCaseDir, mp4s[0]));
 
@@ -242,6 +266,18 @@ export default defineConfig({
                   }
                 }
               }
+              // For filtered data: supplement classMap from the raw detections.json so
+              // classes removed by filtering still appear (greyed out) in the frontend.
+              if (filterMetadata !== null) {
+                const rawDetPath = join(PREDICTIONS_DIR, caseName, "detections.json");
+                try {
+                  const rawArr = JSON.parse(readFileSync(rawDetPath, "utf-8"));
+                  const arr = Array.isArray(rawArr) ? rawArr : (rawArr.detections ?? []);
+                  for (const d of arr) {
+                    if (!classMap.has(d.class)) classMap.set(d.class, d.name);
+                  }
+                } catch { /* raw file unavailable — use filtered classes only */ }
+              }
               const sortedClassEntries = [...classMap.entries()].sort((a, b) => a[0] - b[0]);
               const classes = sortedClassEntries.map(([, name]) => name);
               // Remap original (sparse) class IDs → 0-based index into `classes`
@@ -253,11 +289,30 @@ export default defineConfig({
                 // Build per-part cumulative frame-count boundaries for source assignment
                 partBoundaries = []; // [{path, startFrame, endFrame}]
                 let cumulative = 0;
+                let wroteNewCounts = false;
+                const newPartFrames = cachedPartFrames ? { ...cachedPartFrames } : {};
                 for (const mp4 of mp4s) {
                   const mp4Path = join(rawCaseDir, mp4);
-                  const count = probeVideoFrameCount(mp4Path);
+                  let count;
+                  if (cachedPartFrames && cachedPartFrames[mp4] != null) {
+                    // Use persisted count — no ffprobe needed
+                    count = cachedPartFrames[mp4];
+                    frameCountCacheMap.set(mp4Path, count);
+                  } else {
+                    count = probeVideoFrameCount(mp4Path);
+                    newPartFrames[mp4] = count;
+                    wroteNewCounts = true;
+                  }
                   partBoundaries.push({ path: mp4Path, startFrame: cumulative, endFrame: cumulative + count - 1 });
                   cumulative += count;
+                }
+                // Persist newly probed counts so future requests skip ffprobe entirely
+                if (wroteNewCounts) {
+                  try {
+                    writeFileSync(metaPath, JSON.stringify({ ...metaRaw, part_frames: newPartFrames }, null, 2));
+                  } catch (e) {
+                    console.warn("[predictions-api] Could not persist part_frames to metadata.json:", e.message);
+                  }
                 }
                 function sourceForFrame(frame) {
                   for (const p of partBoundaries) {

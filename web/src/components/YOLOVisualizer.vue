@@ -2,22 +2,27 @@
   <!-- ── Case Picker Screen ────────────────────────────────────────────── -->
   <div v-if="showPicker" class="upload-root">
     <div class="upload-center">
-      <div class="upload-label">Ultralytics</div>
-      <h1 class="upload-title">YOLO Visualizer</h1>
+      <div class="upload-label">Mount Sinai &amp; The Cooper Union</div>
+      <h1 class="upload-title">ENT Computer Vision</h1>
       <p class="upload-subtitle">Select a prediction case to examine</p>
 
       <div v-if="loadingCases" class="picker-status">Loading cases…</div>
       <div v-else-if="cases.length === 0" class="picker-status">No cases found in <code>/mnt/data/ent_cv/predictions/</code></div>
-      <div v-else class="cases-grid">
-        <button
-          v-for="c in cases"
-          :key="c"
-          class="case-card"
-          @click="loadCase(c)"
-        >
-          <div class="case-icon">📁</div>
-          <div class="case-name">{{ c }}</div>
-        </button>
+      <div v-else>
+        <div v-for="group in groupedCases" :key="group.label" style="margin-bottom:28px">
+          <div class="date-group-label">{{ group.label }}</div>
+          <div class="cases-grid">
+            <button
+              v-for="c in group.cases"
+              :key="c.name"
+              class="case-card"
+              @click="loadCase(c.name)"
+            >
+              <div class="case-icon">📁</div>
+              <div class="case-name">{{ c.display }}</div>
+            </button>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -50,7 +55,7 @@
     <div class="body-row">
 
       <!-- ── Left Panel ────────────────────────────────────────────────── -->
-      <div class="left-panel">
+      <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
 
         <!-- Playback -->
         <div class="section">
@@ -64,7 +69,7 @@
             >{{ isPlaying ? "⏸" : "▶" }}</button>
             <button class="btn" @click="seekFiltered(1)">▶▶</button>
           </div>
-          <div style="display:flex;gap:4px;overflow:hidden">
+          <div style="display:flex;gap:4px">
             <button
               v-for="r in RATES"
               :key="r"
@@ -120,7 +125,15 @@
         <!-- Time display -->
         <div class="time-display">
           <div class="time-value">
-            {{ formatTime(currentTime) }}
+            <input
+              type="text"
+              :value="formatTime(currentTime)"
+              @keydown.enter="e => { handleTimeInput(e.target.value); e.target.blur(); }"
+              @blur="e => handleTimeInput(e.target.value)"
+              class="time-input"
+              title="Enter time: M:SS, H:MM:SS, or bare number (minutes, e.g. 30 → 30:00, 30.5 → 30:30)"
+            />
+            <div v-if="timeInputError" class="time-input-error">{{ timeInputError }}</div>
           </div>
           <div class="time-sub">
             Frame 
@@ -224,6 +237,9 @@
         </div>
       </div>
 
+      <!-- Left resize handle -->
+      <div class="resize-handle resize-handle--col" @mousedown="startResize('left', $event)"></div>
+
       <!-- ── Main Content ───────────────────────────────────────────────── -->
       <div class="main-content">
 
@@ -248,6 +264,7 @@
               class="video-el"
               playsinline
               preload="auto"
+              muted
             />
             <!-- Canvas overlay only shown in raw mode —annotations are baked into prediction videos -->
             <canvas
@@ -285,17 +302,26 @@
           </div>
         </div>
 
+        <!-- Resize handle: video ↔ raster -->
+        <div class="resize-handle resize-handle--row" @mousedown="startResize('raster', $event)"></div>
+
         <!-- Class labels + Raster -->
         <div style="display:flex;border-top:1px solid #1a1a24;flex-shrink:0">
           <div style="width:120px;flex-shrink:0;background:#08080e;border-right:1px solid #1a1a24">
             <div
-              v-for="item in displayedClasses"
+              v-for="(item, displayIdx) in displayedClasses"
               :key="item.idx"
               class="raster-label"
               :style="{
                 height: rasterLabelHeight,
-                color: enabledClasses.has(item.idx) ? '#999' : '#333'
+                color: enabledClasses.has(item.idx) ? '#999' : '#333',
+                cursor: 'grab',
               }"
+              draggable="true"
+              @dragstart="handleDragStart($event, displayIdx)"
+              @dragover.prevent="handleDragOver($event, displayIdx)"
+              @drop="handleDrop($event, displayIdx)"
+              @dragend="handleDragEnd"
             >
               <div
                 class="raster-label-bar"
@@ -311,7 +337,7 @@
           <div style="flex:1;position:relative">
             <canvas
               ref="rasterRef"
-              style="width:100%;height:200px;display:block;cursor:crosshair"
+              :style="{ width: '100%', height: rasterHeight + 'px', display: 'block', cursor: 'crosshair' }"
               @click="handleRasterClick"
               @mousemove="handleRasterMouseMove"
               @mousedown="handleRasterMouseDown"
@@ -345,8 +371,11 @@
         </div>
       </div>
 
+      <!-- Resize handle: main ↔ right panel -->
+      <div class="resize-handle resize-handle--col" @mousedown="startResize('right', $event)"></div>
+
       <!-- ── Right Stats Panel ──────────────────────────────────────────── -->
-      <div class="right-panel" style="display: flex; flex-direction: column; overflow: hidden; padding: 0">
+      <div class="right-panel" :style="{ display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0', width: rightPanelWidth + 'px' }">
 
         <!-- Classes (top, scrollable) -->
         <div style="flex:1;min-height:0;overflow-y:auto;padding:10px 14px">
@@ -371,9 +400,14 @@
             :key="item.idx"
             class="class-row"
             :class="{ 'class-row--dragging': draggingClassIdx === displayIdx }"
-            :style="{ background: enabledClasses.has(item.idx) ? '#0e0e1a' : 'transparent', opacity: enabledClasses.has(item.idx) ? 1 : 0.35, cursor: classSortMode === 'custom' ? 'move' : 'pointer' }"
+            :style="{
+              background: enabledClasses.has(item.idx) ? '#0e0e1a' : 'transparent',
+              opacity: classStats[item.idx]?.count === 0 ? 0.25 : (enabledClasses.has(item.idx) ? 1 : 0.35),
+              cursor: classSortMode === 'custom' ? 'move' : 'pointer',
+              pointerEvents: classStats[item.idx]?.count === 0 ? 'none' : undefined,
+            }"
             :draggable="classSortMode === 'custom'"
-            @click="toggleClass(item.idx)"
+            @click="guardedToggleClass(item.idx)"
             @dblclick.stop="handleClassDoubleClick(item.idx)"
             @dragstart="handleDragStart($event, displayIdx)"
             @dragover.prevent="handleDragOver($event, displayIdx)"
@@ -381,11 +415,14 @@
             @dragend="handleDragEnd"
           >
             <div v-if="classSortMode === 'custom'" style="margin-right:6px;color:#666;cursor:grab;user-select:none" @mousedown.stop>⋮⋮</div>
-            <div class="class-dot" :style="{ background: CLASS_COLORS[item.idx % CLASS_COLORS.length] }" />
+            <div class="class-dot" :style="{ background: classStats[item.idx]?.count === 0 ? '#333' : CLASS_COLORS[item.idx % CLASS_COLORS.length] }" />
             <div style="flex:1;min-width:0">
               <div class="class-name">{{ item.cls }}</div>
               <div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap">
-                <div v-if="classStats[item.idx]" class="class-stat">
+                <div v-if="classStats[item.idx]?.count === 0" class="class-stat" style="color:#444;font-style:italic">
+                  no detections
+                </div>
+                <div v-else-if="classStats[item.idx]" class="class-stat">
                   {{ classStats[item.idx].pct.toFixed(0) }}% frames
                 </div>
                 <div v-if="filteredSummary?.onset_count?.[item.cls] != null" style="font-size:11px;color:#888">
@@ -414,22 +451,44 @@
         </div>
 
         <!-- Transitions (filtered mode, when summary available) -->
-        <div v-if="filteredSummary?.transition_matrix && Object.keys(filteredSummary.transition_matrix).length"
+        <div v-if="transitionMatrix"
           style="flex-shrink:0;border-top:1px solid #1a1a24;padding:10px 14px;max-height:40%;overflow-y:auto">
           <div class="section-label" style="margin-bottom:8px">Transitions</div>
-          <div
-            v-for="[fromCls, targets] in Object.entries(filteredSummary.transition_matrix)"
-            :key="fromCls"
-          >
-            <div
-              v-for="[toCls, count] in Object.entries(targets).sort((a,b) => b[1]-a[1])"
-              :key="toCls"
-              style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px;font-size:11px"
-            >
-              <span style="flex:1;min-width:0;color:#888;word-break:break-all">{{ fromCls }}</span>
-              <span style="color:#444;flex-shrink:0;padding-top:1px">→</span>
-              <span style="flex:1;min-width:0;color:#888;word-break:break-all">{{ toCls }}</span>
-              <span style="color:#4ecdc4;font-weight:600;flex-shrink:0;min-width:18px;text-align:right">{{ count }}</span>
+          <div style="display:flex">
+            <!-- Row labels -->
+            <div :style="{ display:'flex', flexDirection:'column', justifyContent:'flex-end', marginRight:'4px' }">
+              <div :style="{ height: transitionMatrix.cellSize + 'px' }" v-for="cls in transitionMatrix.classes" :key="'rl-'+cls"
+                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:#666;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:60px"
+                :title="cls">{{ cls }}</div>
+            </div>
+            <div>
+              <!-- Column labels -->
+              <div style="display:flex;margin-left:0">
+                <div v-for="cls in transitionMatrix.classes" :key="'cl-'+cls"
+                  :style="{ width: transitionMatrix.cellSize + 'px', textAlign:'center', fontSize:'9px', color:'#666', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }"
+                  :title="cls">{{ cls.slice(0,3) }}</div>
+              </div>
+              <!-- Matrix grid -->
+              <div v-for="(row, ri) in transitionMatrix.grid" :key="ri" style="display:flex">
+                <div v-for="(cell, ci) in row" :key="ci"
+                  :style="{
+                    width: transitionMatrix.cellSize + 'px',
+                    height: transitionMatrix.cellSize + 'px',
+                    background: cell.count > 0
+                      ? `rgba(78, 205, 196, ${0.15 + 0.85 * cell.intensity})`
+                      : '#0c0c16',
+                    border: '1px solid #1a1a24',
+                    borderRadius: '2px',
+                    cursor: cell.count > 0 ? 'default' : undefined,
+                    position: 'relative',
+                  }"
+                  :title="cell.from + ' → ' + cell.to + ': ' + cell.count"
+                >
+                  <span v-if="cell.count > 0" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:600">
+                    {{ cell.count }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -489,6 +548,12 @@ const customOrder       = ref([]);  // array of class indices (empty = not initi
 const draggingClassIdx  = ref(null);  // currently dragging class index
 const showSortDropdown  = ref(false);  // sort dropdown visibility
 
+// ── Panel resizing state ──────────────────────────────────────────────────
+const leftPanelWidth    = ref(280);
+const rightPanelWidth   = ref(280);
+const videoFlex         = ref(1);     // flex-grow of video area
+const rasterHeight      = ref(200);   // px height of raster canvas
+
 // ── Jump-filter state ─────────────────────────────────────────────────────
 const jumpFilter        = ref('none'); // 'none'|'any'|'class'|'onset'|'changed'
 const jumpFilterClassIds = ref(new Set()); // class indices when jumpFilter==='class'
@@ -506,6 +571,8 @@ const ppResult          = ref(null);
 const filterInfo        = ref(null);
 const rawFrameSet       = shallowRef(null);  // Set<number> of raw frame indices
 const filteredSummary   = ref(null);          // class_time_sec etc from filtered_summary.json
+
+const timeInputError    = ref(null);  // shown near time input when format is invalid
 
 // ── Refs ───────────────────────────────────────────────────────────────────
 const videoRef    = ref(null);
@@ -698,10 +765,10 @@ const currentPartStartTs = computed(() => {
 
 // Precomputed raster label heights (avoid repeated template expressions)
 const rasterLabelHeight = computed(() =>
-  data.value ? `${200 / data.value.classes.length}px` : '20px'
+  data.value ? `${rasterHeight.value / data.value.classes.length}px` : '20px'
 );
 const rasterLabelBarHeight = computed(() =>
-  data.value ? `${200 / data.value.classes.length - 6}px` : '14px'
+  data.value ? `${rasterHeight.value / data.value.classes.length - 6}px` : '14px'
 );
 
 // ── Optimized: single-pass sparse filtered data ────────────────────────────
@@ -843,6 +910,36 @@ const sortedClassStats = computed(() =>
   classStats.value.filter(s => s.count > 0).sort((a, b) => b.pct - a.pct)
 );
 
+// Cases organized by date (parsed from directory name like 20251113_02)
+const DATE_CASE_RE = /^(\d{4})(\d{2})(\d{2})_(\d+)$/;
+const groupedCases = computed(() => {
+  if (!cases.value || cases.value.length === 0) return [];
+  const dateMap = new Map();  // "YYYY/MM/DD" → [{name, display, sortKey}]
+  const others = [];
+  for (const c of cases.value) {
+    const m = DATE_CASE_RE.exec(c);
+    if (m) {
+      const label = `${m[1]}/${m[2]}/${m[3]}`;
+      if (!dateMap.has(label)) dateMap.set(label, []);
+      dateMap.get(label).push({
+        name: c,
+        display: `Case ${parseInt(m[4], 10).toString().padStart(2, '0')}`,
+        sortKey: parseInt(m[4], 10),
+      });
+    } else {
+      others.push({ name: c, display: c, sortKey: c });
+    }
+  }
+  // Sort cases within each date group by case number
+  for (const arr of dateMap.values()) arr.sort((a, b) => a.sortKey - b.sortKey);
+  // Sort date groups newest first
+  const groups = [...dateMap.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([label, cs]) => ({ label, cases: cs }));
+  if (others.length > 0) groups.push({ label: 'Others', cases: others });
+  return groups;
+});
+
 // Classes list display order — drives both left panel AND raster row order
 const displayedClasses = computed(() => {
   if (!data.value) return [];
@@ -913,6 +1010,40 @@ const sparklines = computed(() => {
   }
 
   return result;
+});
+
+// ── Transition matrix (computed from filteredSummary.transition_matrix) ────
+const transitionMatrix = computed(() => {
+  const tm = filteredSummary.value?.transition_matrix;
+  if (!tm || !data.value) return null;
+  // Collect all classes that appear in the matrix
+  const classSet = new Set();
+  for (const [from, targets] of Object.entries(tm)) {
+    classSet.add(from);
+    for (const to of Object.keys(targets)) classSet.add(to);
+  }
+  if (classSet.size === 0) return null;
+  // Use display order if available, otherwise alphabetical
+  const allClasses = data.value.classes;
+  const classes = allClasses.filter(c => classSet.has(c));
+  // Find max count for intensity normalization
+  let maxCount = 1;
+  for (const targets of Object.values(tm)) {
+    for (const count of Object.values(targets)) {
+      if (count > maxCount) maxCount = count;
+    }
+  }
+  // Build grid (rows = from, cols = to)
+  const grid = classes.map(from =>
+    classes.map(to => ({
+      from, to,
+      count: tm[from]?.[to] ?? 0,
+      intensity: (tm[from]?.[to] ?? 0) / maxCount,
+    }))
+  );
+  // Cell size adapts to number of classes (min 20, max 32)
+  const cellSize = Math.max(20, Math.min(32, Math.floor(200 / classes.length)));
+  return { classes, grid, cellSize };
 });
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -1077,6 +1208,50 @@ function handleFrameInput(value) {
   seekToFrame(targetFrame);
 }
 
+// Parse a time string and seek to the nearest frame.
+// Supported formats:
+//   H:MM:SS or H:MM:SS.ms   → hours:minutes:seconds
+//   M:SS or M:SS.ms         → minutes:seconds
+//   <number>                → interpreted as minutes (decimals = fractional minutes,
+//                             e.g. "30" → 30:00, "30.5" → 30:30)
+// Shows timeInputError for unrecognisable input.
+function handleTimeInput(value) {
+  if (!data.value) return;
+  const str = value.trim();
+  if (!str) return;
+  let totalSec = NaN;
+  // Try H:MM:SS.ms or H:MM:SS
+  const hms = str.match(/^(\d+):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$/);
+  if (hms) {
+    totalSec = parseInt(hms[1], 10) * 3600 + parseInt(hms[2], 10) * 60 + parseInt(hms[3], 10);
+    if (hms[4]) totalSec += parseFloat('0.' + hms[4]);
+  } else {
+    // Try M:SS.ms or M:SS
+    const ms = str.match(/^(\d+):(\d{1,2})(?:\.(\d+))?$/);
+    if (ms) {
+      totalSec = parseInt(ms[1], 10) * 60 + parseInt(ms[2], 10);
+      if (ms[3]) totalSec += parseFloat('0.' + ms[3]);
+    } else {
+      // Bare number: treat as minutes (decimals = fractional minutes).
+      // e.g. "30" → 1800 s, "30.5" → 1830 s
+      const bare = parseFloat(str);
+      if (!isNaN(bare) && /^[\d.]+$/.test(str)) {
+        totalSec = bare * 60;
+      }
+    }
+  }
+  if (isNaN(totalSec) || totalSec < 0) {
+    timeInputError.value = 'Invalid format — use M:SS, H:MM:SS, or a number (minutes)';
+    setTimeout(() => { timeInputError.value = null; }, 3000);
+    return;
+  }
+  timeInputError.value = null;
+  const fps = data.value.fps;
+  const frame = Math.round(totalSec * fps);
+  const clamped = Math.max(0, Math.min(data.value.total_frames - 1, frame));
+  seekToFrame(clamped);
+}
+
 function togglePlay() {
   if (videoRef.value) {
     videoRef.value.paused ? videoRef.value.play() : videoRef.value.pause();
@@ -1115,7 +1290,10 @@ function toggleAllClasses() {
 }
 
 // ── Drag-to-reorder handlers (custom mode only) ──────────────────────
+let _justDragged = false;
+
 function handleDragStart(e, displayIdx) {
+  _justDragged = false;
   draggingClassIdx.value = displayIdx;
   e.dataTransfer.effectAllowed = 'move';
 }
@@ -1128,16 +1306,28 @@ function handleDragOver(e, displayIdx) {
 function handleDrop(e, targetIdx) {
   e.preventDefault();
   if (draggingClassIdx.value === null || draggingClassIdx.value === targetIdx) return;
+  _justDragged = true;
   
+  // Ensure we have a custom order to reorder
+  if (customOrder.value.length !== data.value.classes.length) {
+    customOrder.value = data.value.classes.map((_, i) => i);
+  }
   // Reorder customOrder array
   const newOrder = [...customOrder.value];
   const [removed] = newOrder.splice(draggingClassIdx.value, 1);
   newOrder.splice(targetIdx, 0, removed);
   customOrder.value = newOrder;
+  // Auto-switch to custom sort mode
+  if (classSortMode.value !== 'custom') classSortMode.value = 'custom';
 }
 
 function handleDragEnd() {
   draggingClassIdx.value = null;
+}
+
+function guardedToggleClass(idx) {
+  if (_justDragged) { _justDragged = false; return; }
+  toggleClass(idx);
 }
 
 function handleClickOutside(e) {
@@ -1151,6 +1341,39 @@ function handleClickOutside(e) {
 function onZoomInput(e) {
   zoomLevel.value = parseFloat(e.target.value);
   panOffset.value = Math.min(panOffset.value, 1 - 1 / zoomLevel.value);
+}
+
+// ── Panel resize handlers ──────────────────────────────────────────────────
+function startResize(target, e) {
+  e.preventDefault();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const startVal = target === 'left' ? leftPanelWidth.value
+    : target === 'right' ? rightPanelWidth.value
+    : rasterHeight.value;
+  const onMove = (ev) => {
+    if (target === 'left') {
+      leftPanelWidth.value = Math.max(180, Math.min(500, startVal + (ev.clientX - startX)));
+    } else if (target === 'right') {
+      rightPanelWidth.value = Math.max(180, Math.min(500, startVal - (ev.clientX - startX)));
+    } else if (target === 'raster') {
+      // Raster is at the bottom; its resize handle is its top edge.
+      // Dragging DOWN means the handle moves down → raster shrinks (more space above).
+      // Dragging UP means the handle moves up → raster grows.
+      rasterHeight.value = Math.max(80, Math.min(600, startVal - (ev.clientY - startY)));
+    }
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    scheduleDraws(6); // redraw raster + minimap after resize
+  };
+  document.body.style.cursor = target === 'raster' ? 'row-resize' : 'col-resize';
+  document.body.style.userSelect = 'none';
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 // ── Canvas helpers ─────────────────────────────────────────────────────────
@@ -1443,6 +1666,9 @@ watch(displayedClasses, () => {
 }, { flush: "post" });
 
 // ── Video part switching ───────────────────────────────────────────────────
+// Flag set by the ended handler so the URL watcher knows to auto-play the next part
+let _partEndedContinue = false;
+
 // Stop & unload video when entering prediction mode; re-trigger load on return to raw.
 watch(videoMode, (mode) => {
   if (mode === 'prediction') {
@@ -1454,13 +1680,15 @@ watch(videoMode, (mode) => {
 
 watch(currentPartVideoUrl, (newUrl) => {
   if (!newUrl || newUrl === videoSrc.value) return;
-  const wasPlaying = isPlaying.value;
+  const wasPlaying = isPlaying.value || _partEndedContinue;
+  _partEndedContinue = false;
   if (videoRef.value) videoRef.value.pause();
   videoSrc.value = newUrl;
   nextTick(() => {
     if (!videoRef.value) return;
+    const seekTs = currentPartTimestamp.value;
     const seekAndPlay = () => {
-      videoRef.value.currentTime = currentPartTimestamp.value;
+      videoRef.value.currentTime = seekTs;
       if (wasPlaying) videoRef.value.play();
     };
     videoRef.value.src = newUrl;
@@ -1469,7 +1697,7 @@ watch(currentPartVideoUrl, (newUrl) => {
 });
 
 // ── Video sync ─────────────────────────────────────────────────────────────
-watch([videoRef, data], ([videoEl, d]) => {
+watch([videoRef, data], ([videoEl, d], _old, onCleanup) => {
   if (!videoEl || !d) return;
   const useRVFC = typeof videoEl.requestVideoFrameCallback === 'function';
   const sync = (now, metadata) => {
@@ -1503,10 +1731,39 @@ watch([videoRef, data], ([videoEl, d]) => {
       cancelAnimationFrame(animFrameRef.value);
     }
   };
+  // When a part ends, advance currentFrame to the next part's start so
+  // currentPartVideoUrl changes and the URL watcher loads/plays the new part.
+  const onEnded = () => {
+    const starts = [...partStartFrame.value.entries()].sort((a, b) => a[1] - b[1]);
+    const nextPart = starts.find(([, sf]) => sf > currentFrame.value);
+    if (nextPart) {
+      _partEndedContinue = true;
+      currentFrame.value = nextPart[1];
+    } else {
+      isPlaying.value = false;
+    }
+  };
+  // Redraw overlay after the browser finishes seeking (video frame is now visible).
+  const onSeeked = () => scheduleDraws(1);
+
   videoEl.addEventListener("play", onPlay);
   videoEl.addEventListener("pause", onPause);
-  // Redraw overlay after the browser finishes seeking (video frame is now visible).
-  videoEl.addEventListener("seeked", () => scheduleDraws(1));
+  videoEl.addEventListener("ended", onEnded);
+  videoEl.addEventListener("seeked", onSeeked);
+
+  // Remove listeners when data changes or the watcher stops, preventing stacked
+  // handlers that would fire multiple times per ended event and skip multiple parts.
+  onCleanup(() => {
+    videoEl.removeEventListener("play", onPlay);
+    videoEl.removeEventListener("pause", onPause);
+    videoEl.removeEventListener("ended", onEnded);
+    videoEl.removeEventListener("seeked", onSeeked);
+    if (useRVFC) {
+      videoEl.cancelVideoFrameCallback(animFrameRef.value);
+    } else {
+      cancelAnimationFrame(animFrameRef.value);
+    }
+  });
 });
 
 // ── No-video frame simulation ──────────────────────────────────────────────
@@ -1700,6 +1957,12 @@ onUnmounted(() => {
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 .upload-subtitle { color: #666; font-size: 14px; margin-bottom: 48px; line-height: 1.6; }
+.date-group { width: 100%; margin-bottom: 20px; }
+.date-group-label {
+  font-size: 13px; font-weight: 600; color: #4ecdc4; letter-spacing: 1px;
+  text-transform: none; margin-bottom: 10px; padding-bottom: 4px;
+  border-bottom: 1px solid #1a1a25;
+}
 .cases-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px; width: 100%; margin-bottom: 8px;
@@ -1752,7 +2015,7 @@ onUnmounted(() => {
 
 /* ── Left panel ─────────────────────────────────────────────────────────── */
 .left-panel {
-  width: 280px; border-right: 1px solid #1a1a24; overflow-y: auto;
+  border-right: 1px solid #1a1a24; overflow-y: auto;
   background: #08080e; padding: 16px 14px; flex-shrink: 0;
 }
 .section { margin-bottom: 20px; }
@@ -1768,7 +2031,7 @@ onUnmounted(() => {
 .btn-play { flex: 1; }
 .btn-play--pause { background: #ff6b6b22; border-color: #ff6b6b44; }
 .btn-play--go { background: #4ecdc422; border-color: #4ecdc444; }
-.btn-rate { flex: 1; min-width: 0; font-size: 12px; background: transparent; overflow: hidden; }
+.btn-rate { flex: 1; min-width: 0; font-size: 11px; background: transparent; white-space: nowrap; text-align: center; padding: 8px 4px; }
 .btn-rate--active { background: #4ecdc422; border-color: #4ecdc444; }
 
 .time-display {
@@ -1776,6 +2039,18 @@ onUnmounted(() => {
   border: 1px solid #1a1a24; text-align: center;
 }
 .time-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.time-input {
+  font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: transparent; border: none; border-bottom: 1px solid transparent;
+  color: inherit; font-family: inherit; text-align: center; width: 100%;
+  outline: none; padding: 0;
+}
+.time-input:hover { border-bottom-color: #333; }
+.time-input:focus { border-bottom-color: #4ecdc4; }
+.time-input-error {
+  font-size: 11px; color: #ff6b6b; margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .time-sub { font-size: 13px; color: #555; margin-top: 4px; }
 .frame-input {
   width: 60px;
@@ -1946,9 +2221,20 @@ onUnmounted(() => {
 
 /* ── Right panel ────────────────────────────────────────────────────────── */
 .right-panel {
-  width: 280px; border-left: 1px solid #1a1a24; overflow: hidden;
+  border-left: 1px solid #1a1a24; overflow: hidden;
   background: #08080e; flex-shrink: 0; display: flex; flex-direction: column;
 }
+.resize-handle { flex-shrink: 0; z-index: 10; }
+.resize-handle--col {
+  width: 5px; cursor: col-resize; background: transparent;
+  transition: background 0.15s;
+}
+.resize-handle--col:hover, .resize-handle--col:active { background: rgba(78,205,196,0.18); }
+.resize-handle--row {
+  height: 5px; cursor: row-resize; background: transparent;
+  transition: background 0.15s;
+}
+.resize-handle--row:hover, .resize-handle--row:active { background: rgba(78,205,196,0.18); }
 .det-card {
   padding: 10px; margin-bottom: 6px; border-radius: 8px;
   background: #0c0c16; border: 1px solid #1a1a24;
