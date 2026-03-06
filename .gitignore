@@ -29,3 +29,5 @@ __pycache__/
 .vscode/
 *.code-workspace
 CLAUDE.md
+# Django dev SQLite
+web/backend/db.sqlite3

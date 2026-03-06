@@ -199,14 +199,26 @@
               style="width:100%;accent-color:#4ecdc4" />
           </div>
 
-          <button class="btn" :disabled="ppRunning" style="display:none" />
-          <!-- Status indicator replaces Run button -->
-          <div style="display:flex;align-items:center;gap:8px;padding:4px 0;min-height:26px">
-            <span v-if="ppRunning" style="font-size:11px;color:#888">⟳ Processing…</span>
-            <span v-else-if="ppError" style="font-size:11px;color:#ff6b6b;cursor:help" :title="ppError">✗ Error</span>
-            <span v-else-if="ppResult" style="font-size:11px;color:#4ecdc4">✓ Done</span>
-            <span v-else style="font-size:11px;color:#333">Waiting for case…</span>
-          </div>
+          <!-- Run Post-Process button with progress bar -->
+          <button
+            class="pp-btn"
+            :class="{
+              'pp-btn--running': ppRunning,
+              'pp-btn--error': !ppRunning && ppError,
+              'pp-btn--done': !ppRunning && !ppError && ppResult,
+            }"
+            :disabled="ppRunning || !activeCaseName"
+            @click="runPostprocess"
+          >
+            <span class="pp-btn__label">
+              <template v-if="ppRunning">Processing…</template>
+              <template v-else-if="ppError">✗ Error — Retry</template>
+              <template v-else-if="ppResult">✓ Run Again</template>
+              <template v-else>Run Post-Process</template>
+            </span>
+            <div v-if="ppRunning" class="pp-btn__bar"></div>
+          </button>
+          <div v-if="ppError && !ppRunning" style="font-size:10px;color:#ff6b6b;margin-top:4px;word-break:break-all;max-height:40px;overflow:auto" :title="ppError">{{ ppError }}</div>
         </div>
       </div>
 
@@ -1078,10 +1090,6 @@ async function runPostprocess() {
     ppError.value = err.message;
   } finally {
     ppRunning.value = false;
-    if (_ppPendingReschedule) {
-      _ppPendingReschedule = false;
-      schedulePostprocess(300);
-    }
   }
 }
 
@@ -1573,32 +1581,7 @@ watch(filterMode, async (newMode, oldMode) => {
   }
 });
 
-// ── Auto-run postprocess ───────────────────────────────────────────────────
-let _ppDebounceId = null;
-let _ppPendingReschedule = false;
-function schedulePostprocess(delay = 800) {
-  clearTimeout(_ppDebounceId);
-  if (!activeCaseName.value) return;
-  // If a run is already in flight, remember to re-run once it finishes.
-  if (ppRunning.value) {
-    _ppPendingReschedule = true;
-    return;
-  }
-  _ppDebounceId = setTimeout(() => runPostprocess(), delay);
-}
-
-// Debounce on param changes (800 ms lets sliders settle)
-watch(
-  [ppMethod, ppMinDuration, ppGapFill, ppWindowSec, ppVoteThreshold],
-  () => schedulePostprocess(800),
-);
-// Confidence threshold uses shorter delay so scrubbing the slider feels responsive
-watch(confidenceThreshold, () => schedulePostprocess(300));
-
-// Immediate run when a new case is loaded (short delay to let data settle)
-watch(activeCaseName, (name) => {
-  if (name) schedulePostprocess(300);
-});
+// (Post-process is now triggered manually via the Run button)
 
 // Single watcher for raster + minimap (they share most deps)
 watch(
@@ -2129,4 +2112,29 @@ onUnmounted(() => {
   background: #0c0c16; border: 1px solid #1a1a24;
 }
 .det-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+/* ── Post-process button ────────────────────────────────────────────────── */
+.pp-btn {
+  position: relative; overflow: hidden; width: 100%;
+  padding: 9px 14px; border: 1px solid #2a2a35; border-radius: 6px;
+  background: #0c0c16; color: #999; font-size: 12px; cursor: pointer;
+  font-family: 'JetBrains Mono', monospace; transition: all .15s;
+}
+.pp-btn:hover:not(:disabled) { background: #12121e; color: #ccc; border-color: #4ecdc444; }
+.pp-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+.pp-btn--running { border-color: #4ecdc444; color: #888; cursor: wait; }
+.pp-btn--error { border-color: #ff6b6b44; color: #ff6b6b; }
+.pp-btn--done { border-color: #4ecdc444; color: #4ecdc4; }
+.pp-btn__label { position: relative; z-index: 1; }
+.pp-btn__bar {
+  position: absolute; top: 0; left: 0; bottom: 0; width: 0;
+  background: linear-gradient(90deg, #4ecdc422, #4ecdc433);
+  animation: pp-fill 3s ease-out forwards;
+}
+@keyframes pp-fill {
+  0%   { width: 0; }
+  60%  { width: 70%; }
+  85%  { width: 88%; }
+  100% { width: 95%; }
+}
 </style>
