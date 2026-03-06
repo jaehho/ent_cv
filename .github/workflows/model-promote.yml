@@ -16,6 +16,10 @@ jobs:
 
       - name: Verify model exists
         run: |
+          if [[ "${{ inputs.model_path }}" = /* ]] || [[ "${{ inputs.model_path }}" == *".."* ]]; then
+            echo "::error::Invalid model_path. Use a directory name under /mnt/data/ent_cv/models."
+            exit 1
+          fi
           MODEL_DIR="/mnt/data/ent_cv/models/${{ inputs.model_path }}"
           WEIGHTS="${MODEL_DIR}/weights/best.pt"
           if [ ! -f "${WEIGHTS}" ]; then
@@ -54,6 +58,14 @@ jobs:
         run: |
           SRC="/mnt/data/ent_cv/models/${{ inputs.model_path }}/weights/best.pt"
           DEST="/mnt/data/ent_cv/models/v1/weights/best.pt"
+          DEST_DIR="$(dirname "${DEST}")"
+
+          mkdir -p "${DEST_DIR}"
+
+          if [ ! -s "${SRC}" ]; then
+            echo "Source model file is missing or empty"
+            exit 1
+          fi
 
           # Backup current model
           if [ -f "${DEST}" ]; then
@@ -62,5 +74,11 @@ jobs:
             echo "Backed up existing model to ${BACKUP}"
           fi
 
+          SRC_HASH=$(sha256sum "${SRC}" | awk '{print $1}')
           cp "${SRC}" "${DEST}"
+          DEST_HASH=$(sha256sum "${DEST}" | awk '{print $1}')
+          if [ "${SRC_HASH}" != "${DEST_HASH}" ]; then
+            echo "Model promotion failed verification"
+            exit 1
+          fi
           echo "Promoted ${{ inputs.model_path }} → v1"
