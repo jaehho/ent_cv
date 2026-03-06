@@ -11,6 +11,7 @@ WORKDIR /app
 
 # Install Python project (ent_cv + Django + ML deps)
 COPY pyproject.toml /app/
+COPY README.md /app/
 COPY ent_cv/ /app/ent_cv/
 RUN pip install --no-cache-dir .[db]
 
