@@ -21,7 +21,7 @@ services:
     ports:
       - "8787:8787"
     volumes:
-      - /mnt/data/ent_cv/predictions:/mnt/data/ent_cv/predictions:ro
+      - /mnt/data/ent_cv/predictions:/mnt/data/ent_cv/predictions
       - /mnt/data/ent_cv/raw:/mnt/data/ent_cv/raw:ro
     environment:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
