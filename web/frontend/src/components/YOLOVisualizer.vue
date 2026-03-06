@@ -319,7 +319,7 @@
             </div>
           </div>
 
-          <div style="flex:1;position:relative">
+          <div style="flex:1;position:relative;overflow:hidden;">
             <canvas
               ref="rasterRef"
               :style="{ 
@@ -336,7 +336,16 @@
               @mouseleave="hoveredFrame = null"
               @wheel.passive="handleWheel"
             />
-            <div v-if="hoveredFrame !== null" class="hover-tooltip">
+            <div v-if="hoveredFrame !== null" :style="{
+              position: 'absolute',
+              left: hoverX + 'px',
+              top: 0,
+              bottom: 0,
+              width: '1px',
+              borderLeft: '1px dashed rgba(255,255,255,0.5)',
+              pointerEvents: 'none'
+            }"></div>
+            <div v-if="hoveredFrame !== null" class="hover-tooltip" :style="{ left: hoverX + 8 + 'px', right: 'auto' }">
               Frame {{ hoveredFrame }} ·
               {{ formatTime(hoveredFrame / data.fps) }}
             </div>
@@ -536,6 +545,17 @@ const enabledClasses    = ref(new Set());
 const zoomLevel         = ref(1);
 const panOffset         = ref(0);
 const hoveredFrame      = ref(null);
+const hoverX = computed(() => {
+  if (hoveredFrame.value === null || !data.value || !rasterRef.value) return 0;
+  const W = rasterRef.value.clientWidth;
+  if (!W) return 0;
+  const totalFrames = data.value.total_frames;
+  const visibleFraction = 1 / zoomLevel.value;
+  const startFrame = panOffset.value * totalFrames;
+  const visibleFrames = visibleFraction * totalFrames;
+  const pxPerFrame = W / visibleFrames;
+  return (hoveredFrame.value - startFrame) * pxPerFrame;
+});
 const showStats         = ref(true);
 const playbackRate      = ref(1);
 const isDraggingTimeline = ref(false);
@@ -1506,18 +1526,6 @@ function drawRaster() {
     ctx.shadowBlur = 0;
   }
 
-  // Hover line
-  if (hoveredFrame.value !== null) {
-    const hx = (hoveredFrame.value - startFrame) * pxPerFrame;
-    if (hx >= 0 && hx <= W) {
-      ctx.strokeStyle = "rgba(255,255,255,0.3)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(hx, H); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-
   // Changed-frame markers (filtered mode) — 2-px strip at raster bottom
   const cf = changedFrames.value;
   if (cf) {
@@ -1631,9 +1639,9 @@ watch(filterMode, async (newMode, oldMode) => {
 
 // (Post-process is now triggered manually via the Run button)
 
-// Single watcher for raster + minimap (they share most deps)
+// Dependency watchers for raster & minimap
 watch(
-  [filteredSparseMap, changedFrames, () => currentFrame.value, () => zoomLevel.value, () => panOffset.value, () => hoveredFrame.value],
+  [filteredSparseMap, changedFrames, () => currentFrame.value, () => zoomLevel.value, () => panOffset.value],
   () => scheduleDraws(6),  // 2 | 4 = raster + minimap
   { flush: "post" }
 );
