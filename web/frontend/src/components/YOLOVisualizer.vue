@@ -322,12 +322,19 @@
           <div style="flex:1;position:relative">
             <canvas
               ref="rasterRef"
-              :style="{ width: '100%', height: rasterHeight + 'px', display: 'block', cursor: 'crosshair' }"
+              :style="{ 
+                width: '100%', 
+                height: rasterHeight + 'px', 
+                display: 'block', 
+                cursor: 'crosshair',
+                touchAction: 'none',
+                overscrollBehavior: 'none'
+              }"
               @click="handleRasterClick"
               @mousemove="handleRasterMouseMove"
               @mousedown="handleRasterMouseDown"
               @mouseleave="hoveredFrame = null"
-              @wheel.prevent="handleWheel"
+              @wheel.passive="handleWheel"
             />
             <div v-if="hoveredFrame !== null" class="hover-tooltip">
               Frame {{ hoveredFrame }} ·
@@ -1006,14 +1013,39 @@ const transitionMatrix = computed(() => {
   return { classes, grid, cellSize };
 });
 
+// ── Helper: Chunked Array Processing ───────────────────────────────────────
+function buildFrameSetChunked(results, chunkSize = 15000) {
+  return new Promise((resolve) => {
+    const frameSet = new Set();
+    let i = 0;
+    
+    function processChunk() {
+      const end = Math.min(i + chunkSize, results.length);
+      for (; i < end; i++) {
+        frameSet.add(results[i].frame);
+      }
+      if (i < results.length) {
+        requestIdleCallback ? requestIdleCallback(processChunk) : setTimeout(processChunk, 0);
+      } else {
+        resolve(frameSet);
+      }
+    }
+    
+    // Start mapping in background
+    processChunk();
+  });
+}
+
 // ── Actions ────────────────────────────────────────────────────────────────
 async function loadCase(caseName) {
   try {
     const res = await fetch(`/api/cases/${caseName}/detections/`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const parsed = await res.json();
-    data.value = parsed;
-    rawFrameSet.value = new Set(parsed.results.map(r => r.frame));
+    
+    // Deep-freeze to guarantee View proxy skips traversing large nested arrays
+    data.value = Object.freeze(parsed);
+    
     filteredSummary.value = null;
     filterInfo.value = null;
     filterMode.value = 'raw';
@@ -1022,12 +1054,19 @@ async function loadCase(caseName) {
     activeCaseName.value = caseName;
     enabledClasses.value = new Set(parsed.classes.map((_, i) => i));
     jumpFilterClassIds.value = new Set();
+    
     // Initialize custom order if not matching or empty
     if (customOrder.value.length !== parsed.classes.length) {
       customOrder.value = parsed.classes.map((_, i) => i);
     }
     videoSrc.value = null;
     currentFrame.value = 0;
+    
+    // Build set implicitly off the main render thread to prevent UI freezing
+    buildFrameSetChunked(parsed.results).then((set) => {
+      rawFrameSet.value = set;
+    });
+
     nextTick(() => seekToFrame(parsed.results[0]?.frame ?? 0));
   } catch (err) {
     alert(`Failed to load case "${caseName}": ${err.message}`);
@@ -1403,7 +1442,7 @@ function drawRaster() {
   const d = data.value;
   if (!canvas || !sparse || !d) return;
 
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: false }); // Opt: Disable alpha composition if canvas is opaque
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
   canvas.width = rect.width * dpr;
@@ -1414,7 +1453,7 @@ function drawRaster() {
   const rowH = H / numClasses;
   const totalFrames = d.total_frames;
   const visibleFraction = 1 / zoomLevel.value;
-  const startFrame = Math.floor(panOffset.value * totalFrames);
+  const startFrame = Math.max(0, Math.floor(panOffset.value * totalFrames));
   const endFrame = Math.min(Math.ceil((panOffset.value + visibleFraction) * totalFrames), totalFrames);
   const visibleFrames = endFrame - startFrame;
   const pxPerFrame = W / visibleFrames;
@@ -1425,23 +1464,31 @@ function drawRaster() {
   // Grid lines
   ctx.strokeStyle = "rgba(255,255,255,0.04)";
   ctx.lineWidth = 0.5;
+  ctx.beginPath();
   for (let i = 0; i < numClasses; i++) {
-    ctx.beginPath(); ctx.moveTo(0, i * rowH); ctx.lineTo(W, i * rowH); ctx.stroke();
+    ctx.moveTo(0, i * rowH); 
+    ctx.lineTo(W, i * rowH); 
   }
+  ctx.stroke();
 
   // Build class index to display row mapping
   const clsToRow = classIdxToRowIdx.value;
 
-  // Only iterate sparse entries in the visible range
-  for (const [f, row] of sparse) {
-    if (f < startFrame || f >= endFrame) continue;
+  // ⚡ Optimization: Look up sparse coordinates directly instead of looping evaluating entries
+  // Moves from O(All Detections) down to bounds-constrained O(Visible Frames) limits.
+  for (let f = startFrame; f < endFrame; f++) {
+    const row = sparse.get(f);
+    if (!row) continue;
+    
     const x = (f - startFrame) * pxPerFrame;
     const barW = Math.max(pxPerFrame, 1);
+    
     for (let c = 0; c < numClasses; c++) {
       if (row[c] > 0) {
-        const displayRow = clsToRow.get(c) ?? c;  // fallback to original index
+        const displayRow = clsToRow.get(c) ?? c; 
         const alpha = 0.3 + row[c] * 0.7;
         const rgb = CLASS_COLORS_RGB[c % CLASS_COLORS_RGB.length];
+        
         ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
         ctx.fillRect(x, displayRow * rowH + 1, barW, rowH - 2);
       }
@@ -1475,11 +1522,12 @@ function drawRaster() {
   const cf = changedFrames.value;
   if (cf) {
     ctx.fillStyle = 'rgba(255, 210, 50, 0.85)';
-    for (const f of cf) {
-      if (f < startFrame || f >= endFrame) continue;
-      const x = (f - startFrame) * pxPerFrame;
-      ctx.fillRect(x, H - 2, Math.max(pxPerFrame, 1), 2);
-    }
+    cf.forEach((f) => {
+      if (f >= startFrame && f < endFrame) {
+        const x = (f - startFrame) * pxPerFrame;
+        ctx.fillRect(x, H - 2, Math.max(pxPerFrame, 1), 2);
+      }
+    });
   }
 }
 
