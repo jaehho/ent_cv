@@ -127,6 +127,9 @@ STATIC_URL = "static/"
 
 # ── Production security hardening ────────────────────────────────────────
 if not DEBUG:
+    # Trust X-Forwarded-Proto from the reverse proxy so Django knows the
+    # original request was HTTPS (prevents infinite SECURE_SSL_REDIRECT loop).
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
