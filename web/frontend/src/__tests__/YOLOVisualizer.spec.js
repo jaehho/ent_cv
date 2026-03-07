@@ -191,3 +191,85 @@ describe("YOLOVisualizer loadCase — BUG-01 and BUG-02", () => {
     wrapper.unmount();
   });
 });
+
+describe("YOLOVisualizer loading screen — LOAD-01 and LOAD-02", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("LOAD-01: isLoading is true immediately after mount, before fetch resolves", () => {
+    // Use a manually-controlled promise so fetch never resolves during this test.
+    let resolveHeld;
+    vi.spyOn(global, "fetch").mockReturnValue(
+      new Promise((resolve) => {
+        resolveHeld = resolve;
+      })
+    );
+
+    const wrapper = mountVisualizer("test-case");
+    const state = getSetupState(wrapper);
+
+    // Synchronous check — fetch has not resolved, so loading must be true
+    expect(state.isLoading).toBe(true);
+
+    wrapper.unmount();
+    // resolveHeld is intentionally not called — test is done
+  });
+
+  it("LOAD-01: isLoading remains true after fetch resolves but before loadedmetadata fires", async () => {
+    // Fetch resolves immediately, but jsdom never fires loadedmetadata automatically.
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...MOCK_DETECTIONS }),
+    });
+
+    const wrapper = mountVisualizer("test-case");
+    await flushPromises();
+
+    const state = getSetupState(wrapper);
+
+    // dataReady should be true, but videoReady is still false — so isLoading === true
+    expect(state.isLoading).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it("LOAD-02: isLoading becomes false after videoReady is set", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...MOCK_DETECTIONS }),
+    });
+
+    const wrapper = mountVisualizer("test-case");
+    await flushPromises();
+
+    const state = getSetupState(wrapper);
+
+    // Simulate loadedmetadata by writing videoReady via setupState proxy
+    state.videoReady = true;
+
+    expect(state.isLoading).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("LOAD-02: isLoading becomes false in prediction mode once dataReady is set (no video event needed)", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...MOCK_DETECTIONS }),
+    });
+
+    const wrapper = mountVisualizer("test-case");
+    const state = getSetupState(wrapper);
+
+    // Switch to prediction mode before triggering loadCase
+    state.videoMode = "prediction";
+    await state.loadCase("test-case");
+    await flushPromises();
+
+    // In prediction mode, no video element is used — loading should clear immediately
+    expect(state.isLoading).toBe(false);
+
+    wrapper.unmount();
+  });
+});
