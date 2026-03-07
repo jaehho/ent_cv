@@ -28,8 +28,8 @@ Requirements for this polish milestone. All are frontend-only changes.
 
 ### Transitions Matrix
 
-- [ ] **TRANS-01**: The transitions matrix panel uses a `ResizeObserver` on its container to detect panel width changes
-- [ ] **TRANS-02**: The transitions matrix always renders at a 1:1 square aspect ratio, resizing automatically as the panel width changes
+- [x] **TRANS-01**: The transitions matrix panel uses a `ResizeObserver` on its container to detect panel width changes
+- [x] **TRANS-02**: The transitions matrix always renders at a 1:1 square aspect ratio, resizing automatically as the panel width changes
 
 ## v2 Requirements
 
@@ -58,8 +58,8 @@ Requirements for this polish milestone. All are frontend-only changes.
 | SCROLL-01 | Phase 3 | Complete |
 | SCROLL-02 | Phase 3 | Complete |
 | PICK-01 | Phase 3 | Complete |
-| TRANS-01 | Phase 4 | Pending |
-| TRANS-02 | Phase 4 | Pending |
+| TRANS-01 | Phase 4 | Complete |
+| TRANS-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 9 total

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-07T09:21:29.573Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-07T09:38:08.720Z"
 last_activity: 2026-03-07 — Roadmap created
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
   percent: 0
 ---
 
@@ -68,6 +68,7 @@ Recent decisions affecting current work:
 - [Phase 03-scrollbar-and-case-picker-polish]: Scrollbar CSS placed in index.html inline block — scoped SFC pseudo-elements need unscoped rules
 - [Phase 03-scrollbar-and-case-picker-polish]: CasePicker test uses ?raw SFC import to verify scoped CSS — jsdom limitation workaround
 - [Phase 03-scrollbar-and-case-picker-polish]: height:100vh (not min-height:100vh) on .upload-root — min-height lets element grow beyond viewport requiring body scroll (disabled); fixed height creates bounded internal scroll container
+- [Phase 04]: Watch matrixContainerRef instead of onMounted guard — right-panel div lives inside v-if='data' so ref is null at mount time
 
 ### Pending Todos
 
@@ -80,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T09:21:29.572Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-transitions-matrix-responsive-resize/04-CONTEXT.md
+Last session: 2026-03-07T09:38:08.693Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
