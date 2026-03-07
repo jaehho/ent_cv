@@ -472,17 +472,22 @@
           <div class="section-label" style="margin-bottom:8px">Transitions</div>
           <div style="display:flex">
             <!-- Row labels -->
-            <div :style="{ display:'flex', flexDirection:'column', justifyContent:'flex-end', marginRight:'4px', width: transitionMatrix.rowLabelW + 'px', flexShrink: 0 }">
-              <div :style="{ height: transitionMatrix.cellSize + 'px', width: transitionMatrix.rowLabelW + 'px' }" v-for="cls in transitionMatrix.classes" :key="'rl-'+cls"
-                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:#666;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"
+            <div :style="{ display:'flex', flexDirection:'column', marginRight:'8px', width: transitionMatrix.rowLabelW + 'px', flexShrink: 0 }">
+              <!-- spacer aligns row labels with grid rows (below column label area) -->
+              <div style="height:80px;flex-shrink:0"></div>
+              <div :style="{ minHeight: transitionMatrix.cellSize + 'px', width: transitionMatrix.rowLabelW + 'px' }" v-for="cls in transitionMatrix.classes" :key="'rl-'+cls"
+                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:#666;white-space:normal;overflow-wrap:normal;word-break:keep-all;text-align:right;padding:2px 0"
                 :title="cls">{{ cls }}</div>
             </div>
             <div style="flex:1;min-width:0">
-              <!-- Column labels -->
-              <div style="display:flex">
+              <!-- Column labels: rotated 45° upward -->
+              <div style="display:flex;align-items:flex-end;height:80px;overflow:hidden">
                 <div v-for="cls in transitionMatrix.classes" :key="'cl-'+cls"
-                  :style="{ width: transitionMatrix.cellSize + 'px', textAlign:'center', fontSize:'9px', color:'#666', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis', flexShrink: 0 }"
-                  :title="cls">{{ cls.slice(0,3) }}</div>
+                  :style="{ width: transitionMatrix.cellSize + 'px', flexShrink: 0 }"
+                  style="display:flex;align-items:flex-end;justify-content:flex-start;overflow:hidden">
+                  <span :style="{ transform: 'rotate(-45deg)', transformOrigin: 'bottom left', display:'block', fontSize:'9px', color:'#666', whiteSpace:'normal', overflowWrap:'normal', wordBreak:'keep-all', width: '80px', marginLeft: '4px' }"
+                    :title="cls">{{ cls }}</span>
+                </div>
               </div>
               <!-- Matrix grid -->
               <div v-for="(row, ri) in transitionMatrix.grid" :key="ri" style="display:flex">
@@ -1049,9 +1054,9 @@ const transitionMatrix = computed(() => {
       intensity: (tm[from]?.[to] ?? 0) / maxCount,
     }))
   );
-  // 28px = 14px section padding each side; 50px = fixed row-label column; 4px = margin
-  const ROW_LABEL_W = 54
-  const available = matrixContainerWidth.value > 0 ? Math.max(0, matrixContainerWidth.value - 28 - ROW_LABEL_W) : 136
+  // 28px = 14px section padding each side; 80px = row-label column; 8px = margin
+  const ROW_LABEL_W = 80
+  const available = matrixContainerWidth.value > 0 ? Math.max(0, matrixContainerWidth.value - 28 - ROW_LABEL_W - 8) : 100
   const cellSize = Math.max(1, Math.floor(available / classes.length))
   return { classes, grid, cellSize, rowLabelW: ROW_LABEL_W };
 });
