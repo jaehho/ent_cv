@@ -1,12 +1,21 @@
 <template>
-  <!-- Loading overlay — visible from case selection until API + video both ready -->
-  <div v-if="isLoading" class="loading-screen">
+  <!-- Loading placeholder — before API response (no data yet) -->
+  <div v-if="isLoading && !dataReady" class="loading-screen">
     <div class="loading-spinner"></div>
     <p class="loading-label">Loading...</p>
   </div>
 
   <!-- ── Main Interface ─────────────────────────────────────────────────── -->
-  <div v-else-if="data" class="app-root">
+  <!-- Rendered as soon as data is ready so the video element exists in the DOM.
+       The loadedmetadata listener (which sets videoReady) requires videoRef to be
+       mounted — hiding the whole viewer with v-if prevents that listener from firing. -->
+  <div v-if="data" class="app-root">
+
+    <!-- Loading overlay — covers viewer while video initializes after API responds -->
+    <div v-if="isLoading" class="loading-screen loading-screen--overlay">
+      <div class="loading-spinner"></div>
+      <p class="loading-label">Loading...</p>
+    </div>
 
     <!-- Header -->
     <div class="header">
@@ -2242,5 +2251,11 @@ onUnmounted(() => {
   color: #555;
   font-size: 13px;
   letter-spacing: 1px;
+}
+.loading-screen--overlay {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  z-index: 100;
 }
 </style>
