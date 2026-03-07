@@ -66,7 +66,10 @@ Plans:
   1. Dragging the panel divider to change the right panel width causes the transitions matrix to resize and remain square
   2. The transitions matrix is never distorted into a non-square rectangle at any panel width
   3. When the component is unmounted, the ResizeObserver is cleaned up with no console errors
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 04-01-PLAN.md — Add ResizeObserver on right-panel div + dynamic squareSize in transitionMatrix computed (TRANS-01, TRANS-02)
 
 ## Progress
 
@@ -78,4 +81,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Frame State Fix | 1/1 | Complete   | 2026-03-07 |
 | 2. Loading Screen | 1/1 | Complete    | 2026-03-07 |
 | 3. Scrollbar and Case Picker Polish | 1/1 | Complete    | 2026-03-07 |
-| 4. Transitions Matrix Responsive Resize | 0/? | Not started | - |
+| 4. Transitions Matrix Responsive Resize | 0/1 | Not started | - |
