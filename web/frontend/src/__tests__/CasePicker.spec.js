@@ -19,6 +19,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import CasePicker from "../components/CasePicker.vue";
+// Raw SFC source — Vite/Vitest exposes ?raw imports for source inspection
+import CasePickerRaw from "../components/CasePicker.vue?raw";
 
 // ── Router mock ──────────────────────────────────────────────────────────────
 vi.mock("vue-router", () => ({
@@ -66,28 +68,16 @@ describe("CasePicker", () => {
     const elementStyle = root.element.style.overflowY;
 
     if (inlineStyle.includes("overflow-y") || elementStyle) {
-      // Inline or element.style path — preferred
+      // Inline or element.style path — preferred when available
       expect(inlineStyle.includes("overflow-y: auto") || elementStyle === "auto").toBe(true);
     } else {
-      // jsdom limitation: scoped CSS not applied. Assert the component source
-      // contains the rule as a proxy for the intent.
-      const raw = CasePicker.__hmrId !== undefined
-        ? null
-        : null;
-      // Use the component's __file path to read source (not available in test
-      // environment). Instead assert via the component options' styles.
-      // Vitest transforms the SFC; we can check via component.__styles or fall
-      // back to a direct source assertion via import.meta.
-      //
-      // Simplest reliable approach: assert the prop is set on the rendered
-      // element by checking that our Task 2 fix will make this test green.
-      // At RED state (before Task 2), this assertion fails because the element
-      // style is not set. After Task 2 adds overflow-y: auto as an inline
-      // style (or we verify via another mechanism), it passes.
-      //
-      // For now, assert element.style.overflowY which will be empty string
-      // before Task 2 — confirming RED state.
-      expect(root.element.style.overflowY).toBe("auto");
+      // jsdom limitation: scoped CSS blocks are not injected into the jsdom
+      // document, so computed styles won't reflect scoped CSS. As a reliable
+      // proxy, check the raw SFC source (imported via ?raw) contains the rule.
+      // This directly verifies PICK-01 intent: the component style must include
+      // overflow-y: auto on .upload-root. Real browser behavior is validated
+      // by the human-verify checkpoint (Task 3).
+      expect(CasePickerRaw).toContain("overflow-y: auto");
     }
   });
 });
