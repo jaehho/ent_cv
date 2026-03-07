@@ -19,12 +19,12 @@ Requirements for this polish milestone. All are frontend-only changes.
 
 ### Scrollbars
 
-- [ ] **SCROLL-01**: Custom scrollbar styling (matching site aesthetic) is applied globally via CSS, covering both Chromium/WebKit (`::-webkit-scrollbar`) and Firefox (`scrollbar-width` + `scrollbar-color`)
-- [ ] **SCROLL-02**: The classes section in YOLOVisualizer and all other scrollable areas display the custom scrollbar
+- [x] **SCROLL-01**: Custom scrollbar styling (matching site aesthetic) is applied globally via CSS, covering both Chromium/WebKit (`::-webkit-scrollbar`) and Firefox (`scrollbar-width` + `scrollbar-color`)
+- [x] **SCROLL-02**: The classes section in YOLOVisualizer and all other scrollable areas display the custom scrollbar
 
 ### Case Picker
 
-- [ ] **PICK-01**: The case picker page is scrollable when the case list overflows the viewport
+- [x] **PICK-01**: The case picker page is scrollable when the case list overflows the viewport
 
 ### Transitions Matrix
 
@@ -55,9 +55,9 @@ Requirements for this polish milestone. All are frontend-only changes.
 | BUG-02 | Phase 1 | Complete |
 | LOAD-01 | Phase 2 | Complete |
 | LOAD-02 | Phase 2 | Complete |
-| SCROLL-01 | Phase 3 | Pending |
-| SCROLL-02 | Phase 3 | Pending |
-| PICK-01 | Phase 3 | Pending |
+| SCROLL-01 | Phase 3 | Complete |
+| SCROLL-02 | Phase 3 | Complete |
+| PICK-01 | Phase 3 | Complete |
 | TRANS-01 | Phase 4 | Pending |
 | TRANS-02 | Phase 4 | Pending |
 

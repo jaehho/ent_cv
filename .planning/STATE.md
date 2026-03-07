@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-loading-screen/02-01-PLAN.md
-last_updated: "2026-03-07T08:19:26.108Z"
+stopped_at: Completed 03-scrollbar-and-case-picker-polish/03-01-PLAN.md (awaiting Task 3 human-verify)
+last_updated: "2026-03-07T08:54:04.699Z"
 last_activity: 2026-03-07 — Roadmap created
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
   percent: 0
 ---
 
@@ -65,6 +65,8 @@ Recent decisions affecting current work:
 - [Phase 01-frame-state-fix]: Frame display is 1-indexed by design (:value='currentFrame + 1'); frame 0 correctly shows as Frame 1
 - [Phase 02-loading-screen]: videoReady set inside seekAndPlay loadedmetadata callback, not watcher entry — ensures video src loaded before clearing overlay
 - [Phase 02-loading-screen]: Prediction mode sets videoReady=true immediately after dataReady since no video element in that mode
+- [Phase 03-scrollbar-and-case-picker-polish]: Scrollbar CSS placed in index.html inline block — scoped SFC pseudo-elements need unscoped rules
+- [Phase 03-scrollbar-and-case-picker-polish]: CasePicker test uses ?raw SFC import to verify scoped CSS — jsdom limitation workaround
 
 ### Pending Todos
 
@@ -77,6 +79,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T08:17:31.431Z
-Stopped at: Completed 02-loading-screen/02-01-PLAN.md
+Last session: 2026-03-07T08:54:04.649Z
+Stopped at: Completed 03-scrollbar-and-case-picker-polish/03-01-PLAN.md (awaiting Task 3 human-verify)
 Resume file: None
