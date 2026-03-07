@@ -15,6 +15,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
+import { nextTick } from "vue";
 import YOLOVisualizer from "../components/YOLOVisualizer.vue";
 
 // ── Router mock ──────────────────────────────────────────────────────────────
@@ -269,6 +270,138 @@ describe("YOLOVisualizer loading screen — LOAD-01 and LOAD-02", () => {
 
     // In prediction mode, no video element is used — loading should clear immediately
     expect(state.isLoading).toBe(false);
+
+    wrapper.unmount();
+  });
+});
+
+// ── TRANS-01 and TRANS-02: ResizeObserver + dynamic square sizing ──────────
+const MOCK_DETECTIONS_WITH_SUMMARY = {
+  ...MOCK_DETECTIONS,
+  classes: ["instrument_a", "instrument_b"],
+  results: [
+    { frame: 0, detections: [{ class_id: 0, x1: 0, y1: 0, x2: 10, y2: 10, confidence: 0.9 }] },
+    { frame: 1, detections: [{ class_id: 1, x1: 0, y1: 0, x2: 10, y2: 10, confidence: 0.9 }] },
+  ],
+  total_frames: 100,
+};
+
+const MOCK_FILTERED_SUMMARY = {
+  transition_matrix: {
+    instrument_a: { instrument_a: 0, instrument_b: 3 },
+    instrument_b: { instrument_a: 2, instrument_b: 0 },
+  },
+  classes: ["instrument_a", "instrument_b"],
+  total_transitions: 5,
+};
+
+describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
+  beforeEach(() => {
+    // Reset mock call count between tests
+    ResizeObserver.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function mountWithFilteredSummary() {
+    vi.spyOn(global, "fetch").mockImplementation((url) => {
+      if (url.includes("filtered-summary")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => MOCK_FILTERED_SUMMARY,
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ ...MOCK_DETECTIONS_WITH_SUMMARY }),
+      });
+    });
+    return mountVisualizer("test-case");
+  }
+
+  it("TRANS-01a: ResizeObserver constructor is called at least once on mount and observe() is called with a DOM element", async () => {
+    const wrapper = mountWithFilteredSummary();
+    await flushPromises();
+
+    // ResizeObserver should have been constructed
+    expect(ResizeObserver).toHaveBeenCalled();
+
+    // observe() should have been called on the instance with a DOM element
+    const instance = ResizeObserver.mock.results[ResizeObserver.mock.results.length - 1].value;
+    expect(instance.observe).toHaveBeenCalled();
+    const observedEl = instance.observe.mock.calls[0][0];
+    expect(observedEl).toBeTruthy();
+    expect(observedEl instanceof Element).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it("TRANS-01b: disconnect() is called on the observer instance when component unmounts", async () => {
+    const wrapper = mountWithFilteredSummary();
+    await flushPromises();
+
+    const instance = ResizeObserver.mock.results[ResizeObserver.mock.results.length - 1].value;
+
+    wrapper.unmount();
+
+    expect(instance.disconnect).toHaveBeenCalled();
+  });
+
+  it("TRANS-02a: when ResizeObserver fires width=300, transitionMatrix.squareSize equals 300 (below 320 cap)", async () => {
+    const wrapper = mountWithFilteredSummary();
+    await flushPromises();
+
+    // Set filterMode to filtered and inject filteredSummary so transitionMatrix computed returns non-null
+    const state = getSetupState(wrapper);
+    state.filterMode = "filtered";
+    state.filteredSummary = MOCK_FILTERED_SUMMARY;
+    await nextTick();
+
+    // Fire the ResizeObserver callback manually
+    const observerCallback = ResizeObserver.mock.calls[ResizeObserver.mock.calls.length - 1][0];
+    observerCallback([{ contentRect: { width: 300 } }]);
+    await nextTick();
+
+    expect(state.transitionMatrix.squareSize).toBe(300);
+
+    wrapper.unmount();
+  });
+
+  it("TRANS-02b: when ResizeObserver fires width=400, transitionMatrix.squareSize is capped at 320", async () => {
+    const wrapper = mountWithFilteredSummary();
+    await flushPromises();
+
+    const state = getSetupState(wrapper);
+    state.filterMode = "filtered";
+    state.filteredSummary = MOCK_FILTERED_SUMMARY;
+    await nextTick();
+
+    const observerCallback = ResizeObserver.mock.calls[ResizeObserver.mock.calls.length - 1][0];
+    observerCallback([{ contentRect: { width: 400 } }]);
+    await nextTick();
+
+    expect(state.transitionMatrix.squareSize).toBe(320);
+
+    wrapper.unmount();
+  });
+
+  it("TRANS-02c: transitionMatrix.cellSize is always >= 14 regardless of class count", async () => {
+    const wrapper = mountWithFilteredSummary();
+    await flushPromises();
+
+    const state = getSetupState(wrapper);
+    state.filterMode = "filtered";
+    state.filteredSummary = MOCK_FILTERED_SUMMARY;
+    await nextTick();
+
+    // Fire with a narrow width that would make cells tiny without the floor
+    const observerCallback = ResizeObserver.mock.calls[ResizeObserver.mock.calls.length - 1][0];
+    observerCallback([{ contentRect: { width: 28 } }]); // 28 / 2 classes = 14 exactly
+    await nextTick();
+
+    expect(state.transitionMatrix.cellSize).toBeGreaterThanOrEqual(14);
 
     wrapper.unmount();
   });
