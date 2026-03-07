@@ -1081,13 +1081,16 @@ async function loadCase(caseName) {
     }
     videoSrc.value = null;
     currentFrame.value = 0;
-    
+    zoomLevel.value = 1;      // reset timeline zoom
+    panOffset.value = 0;      // reset timeline pan (also resets minimap viewport reactively)
+    playbackRate.value = 1;   // reset speed ref only — element property synced by setRate() when video loads
+
     // Build set implicitly off the main render thread to prevent UI freezing
     buildFrameSetChunked(parsed.results).then((set) => {
       rawFrameSet.value = set;
     });
 
-    nextTick(() => seekToFrame(parsed.results[0]?.frame ?? 0));
+    nextTick(() => seekToFrame(0));
   } catch (err) {
     alert(`Failed to load case "${caseName}": ${err.message}`);
   }
