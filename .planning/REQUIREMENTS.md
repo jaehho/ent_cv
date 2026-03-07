@@ -9,8 +9,8 @@ Requirements for this polish milestone. All are frontend-only changes.
 
 ### Bug Fixes
 
-- [ ] **BUG-01**: On case load, video starts at frame 0 (fix: `loadCase` must seek to frame 0, not the first detection frame)
-- [ ] **BUG-02**: Canvas overlay renders correct detections for frame 0 on initial load (dependent on BUG-01 fix and ensuring draw fires after video seeks)
+- [x] **BUG-01**: On case load, video starts at frame 0 (fix: `loadCase` must seek to frame 0, not the first detection frame)
+- [x] **BUG-02**: Canvas overlay renders correct detections for frame 0 on initial load (dependent on BUG-01 fix and ensuring draw fires after video seeks)
 
 ### Loading
 
@@ -51,8 +51,8 @@ Requirements for this polish milestone. All are frontend-only changes.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-01 | Phase 1 | Pending |
-| BUG-02 | Phase 1 | Pending |
+| BUG-01 | Phase 1 | Complete |
+| BUG-02 | Phase 1 | Complete |
 | LOAD-01 | Phase 2 | Pending |
 | LOAD-02 | Phase 2 | Pending |
 | SCROLL-01 | Phase 3 | Pending |
