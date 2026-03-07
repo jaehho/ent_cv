@@ -53,7 +53,10 @@ Plans:
   1. Scrollbars in the classes panel and all other scrollable areas display a thin, dark-themed style consistent with the site aesthetic
   2. The custom scrollbar styling is visible in both Chromium-based browsers and Firefox
   3. The case picker page is scrollable when the number of cases exceeds the viewport height — no cases are clipped or unreachable
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 03-01-PLAN.md — Add global scrollbar CSS + fix CasePicker overflow layout (SCROLL-01, SCROLL-02, PICK-01)
 
 ### Phase 4: Transitions Matrix Responsive Resize
 **Goal**: The transitions matrix always renders as a square and reflows correctly as the panel is resized
