@@ -349,27 +349,29 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     expect(instance.disconnect).toHaveBeenCalled();
   });
 
-  it("TRANS-02a: when ResizeObserver fires width=300, transitionMatrix.squareSize equals 300", async () => {
+  it("TRANS-02a: squareSize fits within container — cellSize * classes.length equals squareSize", async () => {
     const wrapper = mountWithFilteredSummary();
     await flushPromises();
 
-    // Set filterMode to filtered and inject filteredSummary so transitionMatrix computed returns non-null
     const state = getSetupState(wrapper);
     state.filterMode = "filtered";
     state.filteredSummary = MOCK_FILTERED_SUMMARY;
     await nextTick();
 
-    // Fire the ResizeObserver callback manually
     const observerCallback = ResizeObserver.mock.calls[ResizeObserver.mock.calls.length - 1][0];
     observerCallback([{ contentRect: { width: 300 } }]);
     await nextTick();
 
-    expect(state.transitionMatrix.squareSize).toBe(300);
+    const { cellSize, squareSize, classes } = state.transitionMatrix;
+    // squareSize must equal cellSize * class count (perfectly fits, no overflow)
+    expect(squareSize).toBe(cellSize * classes.length);
+    // squareSize must not exceed available grid width (container - padding - row labels)
+    expect(squareSize).toBeLessThanOrEqual(300 - 28 - 64);
 
     wrapper.unmount();
   });
 
-  it("TRANS-02b: when ResizeObserver fires width=400, transitionMatrix.squareSize equals 400 (no cap)", async () => {
+  it("TRANS-02b: matrix scales up at wider widths with no cap", async () => {
     const wrapper = mountWithFilteredSummary();
     await flushPromises();
 
@@ -379,15 +381,20 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     await nextTick();
 
     const observerCallback = ResizeObserver.mock.calls[ResizeObserver.mock.calls.length - 1][0];
+    observerCallback([{ contentRect: { width: 200 } }]);
+    await nextTick();
+    const smallSize = state.transitionMatrix.squareSize;
+
     observerCallback([{ contentRect: { width: 400 } }]);
     await nextTick();
+    const largeSize = state.transitionMatrix.squareSize;
 
-    expect(state.transitionMatrix.squareSize).toBe(400);
+    expect(largeSize).toBeGreaterThan(smallSize);
 
     wrapper.unmount();
   });
 
-  it("TRANS-02c: transitionMatrix.cellSize is always >= 14 regardless of class count", async () => {
+  it("TRANS-02c: squareSize fits within container even at very narrow widths", async () => {
     const wrapper = mountWithFilteredSummary();
     await flushPromises();
 
@@ -396,12 +403,13 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     state.filteredSummary = MOCK_FILTERED_SUMMARY;
     await nextTick();
 
-    // Fire with a narrow width that would make cells tiny without the floor
     const observerCallback = ResizeObserver.mock.calls[ResizeObserver.mock.calls.length - 1][0];
-    observerCallback([{ contentRect: { width: 28 } }]); // 28 / 2 classes = 14 exactly
+    observerCallback([{ contentRect: { width: 100 } }]);
     await nextTick();
 
-    expect(state.transitionMatrix.cellSize).toBeGreaterThanOrEqual(14);
+    const { cellSize, squareSize, classes } = state.transitionMatrix;
+    expect(squareSize).toBe(cellSize * classes.length);
+    expect(squareSize).toBeLessThanOrEqual(100 - 28 - 64);
 
     wrapper.unmount();
   });

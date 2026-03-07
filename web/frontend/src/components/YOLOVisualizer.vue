@@ -468,7 +468,7 @@
 
         <!-- Transitions (filtered mode, when summary available) -->
         <div v-if="transitionMatrix"
-          style="flex-shrink:0;border-top:1px solid #1a1a24;padding:10px 14px;max-height:40%;overflow-y:auto;overflow-x:auto">
+          style="flex-shrink:0;border-top:1px solid #1a1a24;padding:10px 14px;max-height:40%;overflow-y:auto">
           <div class="section-label" style="margin-bottom:8px">Transitions</div>
           <div :style="{ width: transitionMatrix.squareSize + 'px', height: transitionMatrix.squareSize + 'px', overflow: 'hidden' }">
           <div style="display:flex">
@@ -1051,10 +1051,10 @@ const transitionMatrix = computed(() => {
       intensity: (tm[from]?.[to] ?? 0) / maxCount,
     }))
   );
-  const squareSize = Math.max(0, matrixContainerWidth.value)
-  const cellSize = squareSize > 0
-    ? Math.max(14, Math.floor(squareSize / classes.length))
-    : Math.max(20, Math.min(32, Math.floor(200 / classes.length)))
+  // 28px = 14px padding each side; 64px = 60px row-label max-width + 4px margin
+  const available = matrixContainerWidth.value > 0 ? Math.max(0, matrixContainerWidth.value - 28 - 64) : 136
+  const cellSize = Math.max(1, Math.floor(available / classes.length))
+  const squareSize = cellSize * classes.length
   return { classes, grid, cellSize, squareSize };
 });
 
