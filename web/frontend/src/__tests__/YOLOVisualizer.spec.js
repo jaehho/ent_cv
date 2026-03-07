@@ -349,7 +349,7 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     expect(instance.disconnect).toHaveBeenCalled();
   });
 
-  it("TRANS-02a: when ResizeObserver fires width=300, transitionMatrix.squareSize equals 300 (below 320 cap)", async () => {
+  it("TRANS-02a: when ResizeObserver fires width=300, transitionMatrix.squareSize equals 300", async () => {
     const wrapper = mountWithFilteredSummary();
     await flushPromises();
 
@@ -369,7 +369,7 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     wrapper.unmount();
   });
 
-  it("TRANS-02b: when ResizeObserver fires width=400, transitionMatrix.squareSize is capped at 320", async () => {
+  it("TRANS-02b: when ResizeObserver fires width=400, transitionMatrix.squareSize equals 400 (no cap)", async () => {
     const wrapper = mountWithFilteredSummary();
     await flushPromises();
 
@@ -382,7 +382,7 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     observerCallback([{ contentRect: { width: 400 } }]);
     await nextTick();
 
-    expect(state.transitionMatrix.squareSize).toBe(320);
+    expect(state.transitionMatrix.squareSize).toBe(400);
 
     wrapper.unmount();
   });

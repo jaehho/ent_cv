@@ -1051,7 +1051,7 @@ const transitionMatrix = computed(() => {
       intensity: (tm[from]?.[to] ?? 0) / maxCount,
     }))
   );
-  const squareSize = Math.min(320, Math.max(0, matrixContainerWidth.value))
+  const squareSize = Math.max(0, matrixContainerWidth.value)
   const cellSize = squareSize > 0
     ? Math.max(14, Math.floor(squareSize / classes.length))
     : Math.max(20, Math.min(32, Math.floor(200 / classes.length)))
