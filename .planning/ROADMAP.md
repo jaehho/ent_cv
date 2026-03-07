@@ -13,7 +13,7 @@ A focused polish pass on the existing Vue 3 + Django surgical instrument detecti
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Frame State Fix** - Reset frame counter and canvas overlay to frame 0 on every case load (completed 2026-03-07)
-- [ ] **Phase 2: Loading Screen** - Show a loading indicator while API fetch and video initialization both complete
+- [x] **Phase 2: Loading Screen** - Show a loading indicator while API fetch and video initialization both complete (completed 2026-03-07)
 - [ ] **Phase 3: Scrollbar and Case Picker Polish** - Apply custom scrollbar styling globally and make the case picker scrollable
 - [ ] **Phase 4: Transitions Matrix Responsive Resize** - Maintain square aspect ratio as panel width changes via ResizeObserver
 
@@ -73,6 +73,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Frame State Fix | 1/1 | Complete   | 2026-03-07 |
-| 2. Loading Screen | 0/1 | Not started | - |
+| 2. Loading Screen | 1/1 | Complete   | 2026-03-07 |
 | 3. Scrollbar and Case Picker Polish | 0/? | Not started | - |
 | 4. Transitions Matrix Responsive Resize | 0/? | Not started | - |

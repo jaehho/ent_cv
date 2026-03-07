@@ -14,8 +14,8 @@ Requirements for this polish milestone. All are frontend-only changes.
 
 ### Loading
 
-- [ ] **LOAD-01**: A loading screen is displayed from the moment a case is selected until both the API response is received AND the video `loadedmetadata` event has fired
-- [ ] **LOAD-02**: The loading screen is hidden and the viewer is shown only when the video is ready to play from frame 0
+- [x] **LOAD-01**: A loading screen is displayed from the moment a case is selected until both the API response is received AND the video `loadedmetadata` event has fired
+- [x] **LOAD-02**: The loading screen is hidden and the viewer is shown only when the video is ready to play from frame 0
 
 ### Scrollbars
 
@@ -53,8 +53,8 @@ Requirements for this polish milestone. All are frontend-only changes.
 |-------------|-------|--------|
 | BUG-01 | Phase 1 | Complete |
 | BUG-02 | Phase 1 | Complete |
-| LOAD-01 | Phase 2 | Pending |
-| LOAD-02 | Phase 2 | Pending |
+| LOAD-01 | Phase 2 | Complete |
+| LOAD-02 | Phase 2 | Complete |
 | SCROLL-01 | Phase 3 | Pending |
 | SCROLL-02 | Phase 3 | Pending |
 | PICK-01 | Phase 3 | Pending |

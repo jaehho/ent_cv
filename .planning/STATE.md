@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-frame-state-fix/01-01-PLAN.md
-last_updated: "2026-03-07T08:03:10.327Z"
+stopped_at: Completed 02-loading-screen/02-01-PLAN.md
+last_updated: "2026-03-07T08:17:36.031Z"
 last_activity: 2026-03-07 — Roadmap created
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
   percent: 0
 ---
 
@@ -63,6 +63,8 @@ Recent decisions affecting current work:
 - CSS approach: Native ::-webkit-scrollbar + scrollbar-width/scrollbar-color, no library
 - [Phase 01-frame-state-fix]: Do not call setRate() in loadCase — video element absent at reset time; reset ref only
 - [Phase 01-frame-state-fix]: Frame display is 1-indexed by design (:value='currentFrame + 1'); frame 0 correctly shows as Frame 1
+- [Phase 02-loading-screen]: videoReady set inside seekAndPlay loadedmetadata callback, not watcher entry — ensures video src loaded before clearing overlay
+- [Phase 02-loading-screen]: Prediction mode sets videoReady=true immediately after dataReady since no video element in that mode
 
 ### Pending Todos
 
@@ -75,6 +77,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T08:03:10.326Z
-Stopped at: Completed 01-frame-state-fix/01-01-PLAN.md
+Last session: 2026-03-07T08:17:31.431Z
+Stopped at: Completed 02-loading-screen/02-01-PLAN.md
 Resume file: None
