@@ -8,6 +8,13 @@
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       html, body, #app { height: 100%; }
       body { overflow: hidden; }
+      /* Custom scrollbars — Chromium/WebKit */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #3c3c4e; }
+      /* Custom scrollbars — Firefox (standard spec, Baseline 2022) */
+      * { scrollbar-width: thin; scrollbar-color: #2a2a3a transparent; }
     </style>
   </head>
   <body>
