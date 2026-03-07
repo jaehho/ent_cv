@@ -40,7 +40,10 @@ Plans:
   1. Selecting a case immediately shows a loading screen — the viewer content is hidden until ready
   2. The loading screen is visible for the full duration of both the API fetch and video initialization
   3. The viewer (video + overlays) appears only after both the API response is received and the video loadedmetadata event has fired
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 02-01-PLAN.md — Add dataReady/videoReady/isLoading gate + spinner overlay in YOLOVisualizer (LOAD-01, LOAD-02)
 
 ### Phase 3: Scrollbar and Case Picker Polish
 **Goal**: Scrollable areas use custom dark-themed scrollbars and the case picker handles overflow correctly
@@ -70,6 +73,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Frame State Fix | 1/1 | Complete   | 2026-03-07 |
-| 2. Loading Screen | 0/? | Not started | - |
+| 2. Loading Screen | 0/1 | Not started | - |
 | 3. Scrollbar and Case Picker Polish | 0/? | Not started | - |
 | 4. Transitions Matrix Responsive Resize | 0/? | Not started | - |
