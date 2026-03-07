@@ -1,6 +1,12 @@
 <template>
+  <!-- Loading overlay — visible from case selection until API + video both ready -->
+  <div v-if="isLoading" class="loading-screen">
+    <div class="loading-spinner"></div>
+    <p class="loading-label">Loading...</p>
+  </div>
+
   <!-- ── Main Interface ─────────────────────────────────────────────────── -->
-  <div v-if="data" class="app-root">
+  <div v-else-if="data" class="app-root">
 
     <!-- Header -->
     <div class="header">
@@ -560,6 +566,9 @@ const showStats         = ref(true);
 const playbackRate      = ref(1);
 const isDraggingTimeline = ref(false);
 const videoMode         = ref('raw');  // 'raw' | 'prediction'
+const dataReady         = ref(false);
+const videoReady        = ref(false);
+const isLoading         = computed(() => !dataReady.value || !videoReady.value);
 const classSortMode     = ref('custom');  // 'default' | 'frequency' | 'alphabetical' | 'custom'
 const customOrder       = ref([]);  // array of class indices (empty = not initialized)
 const draggingClassIdx  = ref(null);  // currently dragging class index
@@ -1058,6 +1067,8 @@ function buildFrameSetChunked(results, chunkSize = 15000) {
 
 // ── Actions ────────────────────────────────────────────────────────────────
 async function loadCase(caseName) {
+  dataReady.value  = false;
+  videoReady.value = false;
   try {
     const res = await fetch(`/api/cases/${caseName}/detections/`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1065,6 +1076,11 @@ async function loadCase(caseName) {
     
     // Deep-freeze to guarantee View proxy skips traversing large nested arrays
     data.value = Object.freeze(parsed);
+    dataReady.value = true;
+    // Prediction mode has no video element — treat as ready immediately
+    if (videoMode.value === 'prediction') {
+      videoReady.value = true;
+    }
     
     filteredSummary.value = null;
     filterInfo.value = null;
@@ -1678,6 +1694,7 @@ watch(currentPartVideoUrl, (newUrl) => {
     const seekTs = currentPartTimestamp.value;
     const seekAndPlay = () => {
       videoRef.value.currentTime = seekTs;
+      videoReady.value = true;
       if (wasPlaying) videoRef.value.play();
     };
     videoRef.value.src = newUrl;
@@ -2195,5 +2212,30 @@ onUnmounted(() => {
   60%  { width: 70%; }
   85%  { width: 88%; }
   100% { width: 95%; }
+}
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: #0f0f17;
+  gap: 16px;
+}
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #2a2a35;
+  border-top-color: #4ecdc4;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.loading-label {
+  color: #555;
+  font-size: 13px;
+  letter-spacing: 1px;
 }
 </style>
