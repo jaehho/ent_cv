@@ -98,7 +98,7 @@ onMounted(() => {
 <style scoped>
 * { box-sizing: border-box; }
 .upload-root {
-  min-height: 100vh; background: #06060a;
+  height: 100vh; background: #06060a;
   display: flex; align-items: flex-start; justify-content: center;
   overflow-y: auto;
   font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
