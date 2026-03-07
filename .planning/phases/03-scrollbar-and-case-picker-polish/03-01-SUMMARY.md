@@ -30,6 +30,7 @@ key-decisions:
   - "Scrollbar CSS placed in index.html inline style block — scoped SFC styles drop pseudo-element rules due to data-v-xxx attribute injection"
   - "CasePicker test asserts overflow-y via ?raw import of SFC source — jsdom does not apply scoped <style> blocks"
   - "align-items changed from center to flex-start on .upload-root — center + min-height: 100vh splits overflow above/below, top half unreachable with body overflow: hidden"
+  - "height:100vh (not min-height:100vh) on .upload-root — min-height lets element grow beyond viewport requiring body scroll (disabled); fixed height creates bounded internal scroll container"
 
 patterns-established:
   - "Global pseudo-element CSS (scrollbars, selections) must live in index.html, not in component <style scoped>"
@@ -67,8 +68,9 @@ Each task was committed atomically:
 2. **Task 0 refinement: raw SFC source assertion** - `693d9a7` (test)
 3. **Task 1: Global scrollbar CSS** - `26f0403` (feat)
 4. **Task 2: CasePicker overflow layout fix** - `54fa96b` (feat)
+5. **Task 3 fix: height:100vh root cause fix (post-checkpoint)** - `e6ffa74` (fix)
 
-_Note: Task 3 is a human-verify checkpoint — awaiting browser verification_
+_Task 3 was a human-verify checkpoint — user reported case picker not scrollable; root cause fixed and re-verified._
 
 ## Files Created/Modified
 - `web/frontend/index.html` — Added webkit scrollbar rules + Firefox scrollbar-width/color
@@ -90,20 +92,29 @@ _Note: Task 3 is a human-verify checkpoint — awaiting browser verification_
 - **Verification:** Test fails RED before Task 2 fix, GREEN after
 - **Committed in:** 693d9a7
 
+**2. [Rule 1 - Bug] Root cause fix: min-height vs height on .upload-root (post-checkpoint)**
+- **Found during:** Task 3 human-verify — user reported case picker still not scrollable after Task 2
+- **Issue:** `min-height: 100vh` lets `.upload-root` grow beyond viewport, but body scroll is disabled (`overflow: hidden`). The element had no bounded height so `overflow-y: auto` had no effect.
+- **Fix:** Changed to `height: 100vh` — creates a bounded container so `overflow-y: auto` scrolls internally, independent of body scroll
+- **Files modified:** web/frontend/src/components/CasePicker.vue
+- **Verification:** Full vitest suite green (16/16); browser-verified by user
+- **Committed in:** e6ffa74
+
 ---
 
-**Total deviations:** 1 auto-fixed (Rule 1 — wrong test assertion mechanism)
-**Impact on plan:** Essential — original assertion would never turn green. No scope creep.
+**Total deviations:** 2 auto-fixed (Rule 1 x2 — wrong test assertion, incorrect CSS height approach in plan)
+**Impact on plan:** Both fixes essential for correctness. No scope creep.
 
 ## Issues Encountered
 - jsdom does not apply Vue scoped `<style>` blocks — documented in test file comments. Resolved via `?raw` import pattern.
+- Original Task 2 plan instruction used `min-height: 100vh` which cannot scroll when `body { overflow: hidden }` — fixed post-checkpoint via Rule 1.
 
 ## User Setup Required
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Task 3 (human-verify checkpoint) pending — start `make web-dev`, open http://localhost:8050, verify thin dark scrollbar in Chrome and Firefox, verify case picker scrolls
-- After checkpoint approval, plan is complete and phase 3 can proceed to next plan
+- All requirements SCROLL-01, SCROLL-02, PICK-01 satisfied and browser-verified
+- Plan fully complete — no remaining blockers
 
 ---
 *Phase: 03-scrollbar-and-case-picker-polish*

@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-scrollbar-and-case-picker-polish/03-01-PLAN.md (awaiting Task 3 human-verify)
-last_updated: "2026-03-07T08:54:04.699Z"
+stopped_at: Completed 03-scrollbar-and-case-picker-polish/03-01-PLAN.md
+last_updated: "2026-03-07T09:02:09.901Z"
 last_activity: 2026-03-07 — Roadmap created
 progress:
   total_phases: 4
@@ -67,6 +67,7 @@ Recent decisions affecting current work:
 - [Phase 02-loading-screen]: Prediction mode sets videoReady=true immediately after dataReady since no video element in that mode
 - [Phase 03-scrollbar-and-case-picker-polish]: Scrollbar CSS placed in index.html inline block — scoped SFC pseudo-elements need unscoped rules
 - [Phase 03-scrollbar-and-case-picker-polish]: CasePicker test uses ?raw SFC import to verify scoped CSS — jsdom limitation workaround
+- [Phase 03-scrollbar-and-case-picker-polish]: height:100vh (not min-height:100vh) on .upload-root — min-height lets element grow beyond viewport requiring body scroll (disabled); fixed height creates bounded internal scroll container
 
 ### Pending Todos
 
@@ -79,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T08:54:04.649Z
-Stopped at: Completed 03-scrollbar-and-case-picker-polish/03-01-PLAN.md (awaiting Task 3 human-verify)
+Last session: 2026-03-07T09:02:04.468Z
+Stopped at: Completed 03-scrollbar-and-case-picker-polish/03-01-PLAN.md
 Resume file: None
