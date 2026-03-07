@@ -99,11 +99,12 @@ onMounted(() => {
 * { box-sizing: border-box; }
 .upload-root {
   min-height: 100vh; background: #06060a;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
+  overflow-y: auto;
   font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
   color: #e0e0e6;
 }
-.upload-center { text-align: center; max-width: 860px; width: 100%; padding: 40px; }
+.upload-center { text-align: center; max-width: 860px; width: 100%; padding: 40px; margin: 0 auto; }
 .upload-header {
   display: flex; justify-content: flex-end; align-items: center;
   margin-bottom: 24px;
