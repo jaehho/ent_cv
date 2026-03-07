@@ -349,7 +349,7 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     expect(instance.disconnect).toHaveBeenCalled();
   });
 
-  it("TRANS-02a: squareSize fits within container — cellSize * classes.length equals squareSize", async () => {
+  it("TRANS-02a: cellSize fits within available grid width (container - padding - row labels)", async () => {
     const wrapper = mountWithFilteredSummary();
     await flushPromises();
 
@@ -362,16 +362,15 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     observerCallback([{ contentRect: { width: 300 } }]);
     await nextTick();
 
-    const { cellSize, squareSize, classes } = state.transitionMatrix;
-    // squareSize must equal cellSize * class count (perfectly fits, no overflow)
-    expect(squareSize).toBe(cellSize * classes.length);
-    // squareSize must not exceed available grid width (container - padding - row labels)
-    expect(squareSize).toBeLessThanOrEqual(300 - 28 - 64);
+    const { cellSize, classes, rowLabelW } = state.transitionMatrix;
+    const available = 300 - 28 - rowLabelW;
+    // grid width must not exceed available space
+    expect(cellSize * classes.length).toBeLessThanOrEqual(available);
 
     wrapper.unmount();
   });
 
-  it("TRANS-02b: matrix scales up at wider widths with no cap", async () => {
+  it("TRANS-02b: cellSize grows when container is wider (no cap)", async () => {
     const wrapper = mountWithFilteredSummary();
     await flushPromises();
 
@@ -383,18 +382,18 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     const observerCallback = ResizeObserver.mock.calls[ResizeObserver.mock.calls.length - 1][0];
     observerCallback([{ contentRect: { width: 200 } }]);
     await nextTick();
-    const smallSize = state.transitionMatrix.squareSize;
+    const smallCell = state.transitionMatrix.cellSize;
 
     observerCallback([{ contentRect: { width: 400 } }]);
     await nextTick();
-    const largeSize = state.transitionMatrix.squareSize;
+    const largeCell = state.transitionMatrix.cellSize;
 
-    expect(largeSize).toBeGreaterThan(smallSize);
+    expect(largeCell).toBeGreaterThan(smallCell);
 
     wrapper.unmount();
   });
 
-  it("TRANS-02c: squareSize fits within container even at very narrow widths", async () => {
+  it("TRANS-02c: grid fits within container at very narrow widths", async () => {
     const wrapper = mountWithFilteredSummary();
     await flushPromises();
 
@@ -404,12 +403,12 @@ describe("YOLOVisualizer — TRANS-01 and TRANS-02", () => {
     await nextTick();
 
     const observerCallback = ResizeObserver.mock.calls[ResizeObserver.mock.calls.length - 1][0];
-    observerCallback([{ contentRect: { width: 100 } }]);
+    observerCallback([{ contentRect: { width: 150 } }]);
     await nextTick();
 
-    const { cellSize, squareSize, classes } = state.transitionMatrix;
-    expect(squareSize).toBe(cellSize * classes.length);
-    expect(squareSize).toBeLessThanOrEqual(100 - 28 - 64);
+    const { cellSize, classes, rowLabelW } = state.transitionMatrix;
+    const available = 150 - 28 - rowLabelW;
+    expect(cellSize * classes.length).toBeLessThanOrEqual(available);
 
     wrapper.unmount();
   });

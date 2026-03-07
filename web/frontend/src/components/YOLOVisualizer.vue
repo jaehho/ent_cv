@@ -470,19 +470,18 @@
         <div v-if="transitionMatrix"
           style="flex-shrink:0;border-top:1px solid #1a1a24;padding:10px 14px;max-height:40%;overflow-y:auto">
           <div class="section-label" style="margin-bottom:8px">Transitions</div>
-          <div :style="{ width: transitionMatrix.squareSize + 'px', height: transitionMatrix.squareSize + 'px', overflow: 'hidden' }">
           <div style="display:flex">
             <!-- Row labels -->
-            <div :style="{ display:'flex', flexDirection:'column', justifyContent:'flex-end', marginRight:'4px' }">
-              <div :style="{ height: transitionMatrix.cellSize + 'px' }" v-for="cls in transitionMatrix.classes" :key="'rl-'+cls"
-                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:#666;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:60px"
+            <div :style="{ display:'flex', flexDirection:'column', justifyContent:'flex-end', marginRight:'4px', width: transitionMatrix.rowLabelW + 'px', flexShrink: 0 }">
+              <div :style="{ height: transitionMatrix.cellSize + 'px', width: transitionMatrix.rowLabelW + 'px' }" v-for="cls in transitionMatrix.classes" :key="'rl-'+cls"
+                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:#666;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"
                 :title="cls">{{ cls }}</div>
             </div>
-            <div>
+            <div style="flex:1;min-width:0">
               <!-- Column labels -->
-              <div style="display:flex;margin-left:0">
+              <div style="display:flex">
                 <div v-for="cls in transitionMatrix.classes" :key="'cl-'+cls"
-                  :style="{ width: transitionMatrix.cellSize + 'px', textAlign:'center', fontSize:'9px', color:'#666', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }"
+                  :style="{ width: transitionMatrix.cellSize + 'px', textAlign:'center', fontSize:'9px', color:'#666', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis', flexShrink: 0 }"
                   :title="cls">{{ cls.slice(0,3) }}</div>
               </div>
               <!-- Matrix grid -->
@@ -507,7 +506,6 @@
                 </div>
               </div>
             </div>
-          </div>
           </div>
         </div>
 
@@ -1051,11 +1049,11 @@ const transitionMatrix = computed(() => {
       intensity: (tm[from]?.[to] ?? 0) / maxCount,
     }))
   );
-  // 28px = 14px padding each side; 64px = 60px row-label max-width + 4px margin
-  const available = matrixContainerWidth.value > 0 ? Math.max(0, matrixContainerWidth.value - 28 - 64) : 136
+  // 28px = 14px section padding each side; 50px = fixed row-label column; 4px = margin
+  const ROW_LABEL_W = 54
+  const available = matrixContainerWidth.value > 0 ? Math.max(0, matrixContainerWidth.value - 28 - ROW_LABEL_W) : 136
   const cellSize = Math.max(1, Math.floor(available / classes.length))
-  const squareSize = cellSize * classes.length
-  return { classes, grid, cellSize, squareSize };
+  return { classes, grid, cellSize, rowLabelW: ROW_LABEL_W };
 });
 
 // ── Helper: Chunked Array Processing ───────────────────────────────────────
