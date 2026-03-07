@@ -1074,6 +1074,12 @@ async function loadCase(caseName) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const parsed = await res.json();
     
+    // Clear video src BEFORE updating data so the currentPartVideoUrl watcher
+    // fires with a clean slate. Setting data first triggers the watcher early;
+    // then nulling videoSrc aborts the load and loadedmetadata never fires,
+    // leaving videoReady stuck at false and the loading screen stuck forever.
+    videoSrc.value = null;
+
     // Deep-freeze to guarantee View proxy skips traversing large nested arrays
     data.value = Object.freeze(parsed);
     dataReady.value = true;
@@ -1081,7 +1087,7 @@ async function loadCase(caseName) {
     if (videoMode.value === 'prediction') {
       videoReady.value = true;
     }
-    
+
     filteredSummary.value = null;
     filterInfo.value = null;
     filterMode.value = 'raw';
@@ -1090,12 +1096,11 @@ async function loadCase(caseName) {
     activeCaseName.value = caseName;
     enabledClasses.value = new Set(parsed.classes.map((_, i) => i));
     jumpFilterClassIds.value = new Set();
-    
+
     // Initialize custom order if not matching or empty
     if (customOrder.value.length !== parsed.classes.length) {
       customOrder.value = parsed.classes.map((_, i) => i);
     }
-    videoSrc.value = null;
     currentFrame.value = 0;
     zoomLevel.value = 1;      // reset timeline zoom
     panOffset.value = 0;      // reset timeline pan (also resets minimap viewport reactively)
