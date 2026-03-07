@@ -27,7 +27,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. When a case loads, the video starts at frame 0 — no stale frame from a previous case or initial state
   2. The canvas overlay renders the correct bounding boxes for frame 0 immediately on first display, without requiring any user interaction
   3. Switching between cases resets frame state cleanly each time
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md — Fix loadCase() seek target and reset zoomLevel/panOffset/playbackRate refs (BUG-01, BUG-02)
 
 ### Phase 2: Loading Screen
 **Goal**: Users see a loading indicator from case selection until the viewer is ready to play, never a blank or broken page
