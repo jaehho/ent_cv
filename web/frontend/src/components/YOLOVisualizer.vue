@@ -391,7 +391,7 @@
       <div class="resize-handle resize-handle--col" @mousedown="startResize('right', $event)"></div>
 
       <!-- ── Right Stats Panel ──────────────────────────────────────────── -->
-      <div class="right-panel" :style="{ display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0', width: rightPanelWidth + 'px' }">
+      <div class="right-panel" ref="matrixContainerRef" :style="{ display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0', width: rightPanelWidth + 'px' }">
 
         <!-- Classes (top, scrollable) -->
         <div style="flex:1;min-height:0;overflow-y:auto;padding:10px 14px">
@@ -468,8 +468,9 @@
 
         <!-- Transitions (filtered mode, when summary available) -->
         <div v-if="transitionMatrix"
-          style="flex-shrink:0;border-top:1px solid #1a1a24;padding:10px 14px;max-height:40%;overflow-y:auto">
+          style="flex-shrink:0;border-top:1px solid #1a1a24;padding:10px 14px;max-height:40%;overflow-y:auto;overflow-x:auto">
           <div class="section-label" style="margin-bottom:8px">Transitions</div>
+          <div :style="{ width: transitionMatrix.squareSize + 'px', height: transitionMatrix.squareSize + 'px', overflow: 'hidden' }">
           <div style="display:flex">
             <!-- Row labels -->
             <div :style="{ display:'flex', flexDirection:'column', justifyContent:'flex-end', marginRight:'4px' }">
@@ -506,6 +507,7 @@
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
 
@@ -586,6 +588,9 @@ const showSortDropdown  = ref(false);  // sort dropdown visibility
 // ── Panel resizing state ──────────────────────────────────────────────────
 const leftPanelWidth    = ref(280);
 const rightPanelWidth   = ref(280);
+const matrixContainerRef   = ref(null)
+const matrixContainerWidth = ref(0)
+let _matrixResizeObserver  = null
 const videoFlex         = ref(1);     // flex-grow of video area
 const rasterHeight      = ref(200);   // px height of raster canvas
 
@@ -1046,9 +1051,11 @@ const transitionMatrix = computed(() => {
       intensity: (tm[from]?.[to] ?? 0) / maxCount,
     }))
   );
-  // Cell size adapts to number of classes (min 20, max 32)
-  const cellSize = Math.max(20, Math.min(32, Math.floor(200 / classes.length)));
-  return { classes, grid, cellSize };
+  const squareSize = Math.min(320, Math.max(0, matrixContainerWidth.value))
+  const cellSize = squareSize > 0
+    ? Math.max(14, Math.floor(squareSize / classes.length))
+    : Math.max(20, Math.min(32, Math.floor(200 / classes.length)))
+  return { classes, grid, cellSize, squareSize };
 });
 
 // ── Helper: Chunked Array Processing ───────────────────────────────────────
@@ -1684,6 +1691,18 @@ watch(displayedClasses, () => {
   scheduleDraws(2);  // 2=raster
 }, { flush: "post" });
 
+// TRANS-01: start ResizeObserver when right-panel ref becomes available (after v-if="data" renders)
+watch(matrixContainerRef, (el) => {
+  if (el && !_matrixResizeObserver) {
+    _matrixResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        matrixContainerWidth.value = entry.contentRect.width
+      }
+    })
+    _matrixResizeObserver.observe(el)
+  }
+})
+
 // ── Video part switching ───────────────────────────────────────────────────
 // Flag set by the ended handler so the URL watcher knows to auto-play the next part
 let _partEndedContinue = false;
@@ -1923,6 +1942,7 @@ onMounted(() => {
   }
 
   loadCase(props.id);
+
 });
 
 onUnmounted(() => {
@@ -1934,6 +1954,10 @@ onUnmounted(() => {
   // Cancel pending video frame callback if active
   if (videoRef.value && typeof videoRef.value.cancelVideoFrameCallback === 'function') {
     videoRef.value.cancelVideoFrameCallback(animFrameRef.value);
+  }
+  if (_matrixResizeObserver) {
+    _matrixResizeObserver.disconnect()
+    _matrixResizeObserver = null
   }
 });
 </script>
