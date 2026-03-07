@@ -480,12 +480,12 @@
                 :title="cls">{{ cls }}</div>
             </div>
             <div style="flex:1;min-width:0">
-              <!-- Column labels: rotated 45° upward -->
-              <div style="display:flex;align-items:flex-end;height:80px;overflow:hidden">
+              <!-- Column labels: rotated 90° upward -->
+              <div style="display:flex;align-items:flex-end;height:80px">
                 <div v-for="cls in transitionMatrix.classes" :key="'cl-'+cls"
                   :style="{ width: transitionMatrix.cellSize + 'px', flexShrink: 0 }"
-                  style="display:flex;align-items:flex-end;justify-content:flex-start;overflow:hidden">
-                  <span :style="{ transform: 'rotate(-45deg)', transformOrigin: 'bottom left', display:'block', fontSize:'9px', color:'#666', whiteSpace:'normal', overflowWrap:'normal', wordBreak:'keep-all', width: '80px', marginLeft: '4px' }"
+                  style="display:flex;align-items:flex-end;justify-content:center;overflow:visible">
+                  <span :style="{ writingMode:'vertical-rl', transform:'rotate(180deg)', display:'block', fontSize:'9px', color:'#666', whiteSpace:'normal', overflowWrap:'normal', wordBreak:'keep-all', maxHeight:'78px', overflow:'hidden' }"
                     :title="cls">{{ cls }}</span>
                 </div>
               </div>
