@@ -7,7 +7,7 @@ import typer
 from loguru import logger
 from ultralytics import YOLO
 
-from ent_cv.config import MODELS_DIR, TRAIN_METRIC_KEYS
+from ent_cv.config import MODELS_DIR, PRETRAINED_DIR, TRAIN_METRIC_KEYS
 from ent_cv.utils import notify
 
 app = typer.Typer(add_completion=False)
@@ -36,7 +36,8 @@ def run(
         yolo_model_path = str(model_p)
         base_name = model_p.parents[1].name if len(model_p.parts) >= 3 else model_p.stem
     else:
-        yolo_model_path = f"{model}.pt"
+        PRETRAINED_DIR.mkdir(parents=True, exist_ok=True)
+        yolo_model_path = str(PRETRAINED_DIR / f"{model}.pt")
         base_name = model
 
     model_name = f"{base_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"

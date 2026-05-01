@@ -7,7 +7,7 @@ import typer
 from loguru import logger
 from ultralytics import YOLO
 
-from ent_cv.config import MODELS_DIR
+from ent_cv.config import MODELS_DIR, PRETRAINED_DIR
 from ent_cv.utils import notify
 
 app = typer.Typer(add_completion=False)
@@ -29,7 +29,11 @@ def run(
         raise FileNotFoundError(f"Dataset YAML not found: {data}")
 
     model_p = Path(model)
-    yolo_path = str(model_p) if model_p.suffix == ".pt" else f"{model}.pt"
+    if model_p.suffix == ".pt":
+        yolo_path = str(model_p)
+    else:
+        PRETRAINED_DIR.mkdir(parents=True, exist_ok=True)
+        yolo_path = str(PRETRAINED_DIR / f"{model}.pt")
     tune_dir = MODELS_DIR / f"tune_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     tune_dir.mkdir(parents=True, exist_ok=True)
 

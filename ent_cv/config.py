@@ -26,6 +26,7 @@ PRIORITY_CASES = [
 ]
 
 MODELS_DIR = DATA_DIR / "models"
+PRETRAINED_DIR = MODELS_DIR / "pretrained"
 
 # Shared metric key mappings used by train.py, batch.py, val.py, etc.
 TRAIN_METRIC_KEYS: list[tuple[str, str]] = [
