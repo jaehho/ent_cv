@@ -66,9 +66,6 @@ def main(
     # DNS/image-safe slug: lowercase, underscores → hyphens.
     model_slug = model_name.lower().replace("_", "-")
 
-    class_list = ", ".join(v for _, v in sorted(names.items()) if isinstance(names, dict)) \
-        if isinstance(names, dict) else ", ".join(names)
-
     func_name = f"pt-jaehho-{model_slug}"
     image_name = f"cvat.{model_slug}:latest"
     annotation_name = model_name

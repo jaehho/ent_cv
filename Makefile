@@ -14,6 +14,46 @@ help: ## Show this help message
 		     /^## / {gsub("^## ", ""); print "\n\033[1;35m" $$0 "\033[0m"}; \
 		     /^[a-zA-Z_-]+:/ {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+## Modeling
+# Common paths — override on the command line: make train DATA=…
+WEIGHTS ?= /mnt/data/ent_cv/models/v1/weights/best.pt
+DATA    ?= /mnt/data/ent_cv/datasets/combined_new/data_with_val.yaml
+SOURCE  ?= /mnt/data/ent_cv/raw/test
+PREDICTIONS ?= /mnt/data/ent_cv/predictions/test
+
+.PHONY: train predict val compare postprocess batch
+train: ## Train a YOLO model  (override DATA=, EPOCHS=200, …)
+	uv run ent-cv train --data $(DATA) --model $(or $(MODEL),yolo11x.pt)
+
+predict: ## Run prediction  (set SOURCE=)
+	uv run ent-cv predict --source $(SOURCE) --weights $(WEIGHTS) --verbose
+
+val: ## Validate a model
+	uv run ent-cv val --weights $(WEIGHTS) --data $(DATA)
+
+compare: ## Compare trained models in MODELS_DIR
+	uv run ent-cv compare --models-dir /mnt/data/ent_cv/models --verbose
+
+postprocess: ## Run post-processing on predictions  (set PREDICTIONS=)
+	uv run ent-cv postprocess --raw-json $(PREDICTIONS)/detections.json
+
+batch: ## Run batch ops from YAML config
+	uv run ent-cv batch /home/jaeho/ent_cv/ent_cv/modeling/configs/batch.yaml
+
+## Data Management
+.PHONY: disk-usage clean-frames clean-all clean-dry-run
+disk-usage: ## Show disk usage for /mnt/data/ent_cv/
+	du -sh /mnt/data/ent_cv/*/
+
+clean-frames: ## Delete extracted prediction frames
+	uv run ent-cv clean --frames
+
+clean-all: ## Delete all prediction artifacts (frames, videos, labels)
+	uv run ent-cv clean --all
+
+clean-dry-run: ## Show what would be deleted (no changes)
+	uv run ent-cv clean --all --dry-run
+
 ## CVAT
 CVAT_HOST := cvat.jaehho.com
 COMPOSE_FILES := \
@@ -36,13 +76,13 @@ cvat-build: ## Build CVAT services
 cvat-superuser: ## Create a CVAT superuser
 	docker exec -it cvat_server bash -ic 'python3 ~/manage.py createsuperuser'
 
-## Web app – Development
+## Web App – Development
 WEB_PORT    := 8050
 DJANGO_PORT := 8787
 WEB_SESSION := ent-cv-web
 VENV_PYTHON := $(REPO_ROOT)/.venv/bin/python
 
-.PHONY: web-django web-vite web-dev web-bg web-stop web-attach web-db web-db-down
+.PHONY: web-django web-vite web-dev web-stop web-attach web-db web-db-down
 web-django: ## Start Django dev server on :$(DJANGO_PORT) (foreground)
 	cd $(REPO_ROOT)/web/backend && set -a && source $(REPO_ROOT)/.env && set +a && $(VENV_PYTHON) manage.py runserver $(DJANGO_PORT)
 
@@ -58,9 +98,6 @@ web-dev: ## Start Django + Vite in a tmux session (two panes)
 	echo "  Django → :$(DJANGO_PORT)   Vite → :$(WEB_PORT)"
 	echo "  attach: make web-attach"
 
-web-bg: ## Same as web-dev (alias)
-	$(MAKE) web-dev
-
 web-stop: ## Stop the web dev tmux session
 	tmux kill-session -t $(WEB_SESSION)
 
@@ -73,8 +110,8 @@ web-db: ## Start only the Postgres container (for dev — shares prod DB)
 web-db-down: ## Stop the Postgres container
 	docker compose --env-file $(REPO_ROOT)/.env -f $(REPO_ROOT)/web/docker-compose.yml stop db
 
-## Web app – Production
-.PHONY: web-build web-prod web-prod-down web-prod-logs web-migrate web-rollback web-createsuperuser web-route
+## Web App – Production
+.PHONY: web-build web-prod web-prod-down web-prod-logs web-migrate web-rollback web-createsuperuser
 web-build: ## Build frontend for production
 	cd $(REPO_ROOT)/web/frontend && npx vite build
 
@@ -107,13 +144,10 @@ web-createsuperuser: ## Create a Django superuser  (dev by default; set WEB_PROD
 		cd $(REPO_ROOT)/web/backend && set -a && source $(REPO_ROOT)/.env && set +a && $(VENV_PYTHON) manage.py createsuperuser; \
 	fi
 
-web-route: ## Show cloudflared ingress rule for entcv.jaehho.com → :$(WEB_PORT)
-	grep -A1 'hostname: entcv.jaehho.com' /etc/cloudflared/config.yml
-
-## Cloudflared tunnel (systemd)
+## Cloudflared Tunnel (systemd)
 CLOUDFLARED_SERVICE ?= cloudflared
 
-.PHONY: cloudflared-status cloudflared-start cloudflared-stop cloudflared-restart cloudflared-info cloudflared-edit cloudflared-route
+.PHONY: cloudflared-status cloudflared-start cloudflared-stop cloudflared-restart cloudflared-info
 cloudflared-status: ## Show cloudflared tunnel service status
 	sudo systemctl status $(CLOUDFLARED_SERVICE) --no-pager
 
@@ -133,40 +167,6 @@ cloudflared-info: ## Show cloudflared tunnel info and config
 	echo "Tunnel configuration:"
 	echo "---------------------"
 	cat /etc/cloudflared/config.yml
-
-cloudflared-edit: ## Edit cloudflared tunnel configuration
-	sudo nvim /etc/cloudflared/config.yml
-
-cloudflared-route: ## Show cloudflared tunnel route
-	echo "Tunnel route information for 'mililab':"
-	echo "-------------------------------------"
-	cloudflared tunnel route ip mililab
-
-## Modeling
-# Common paths — override on the command line: make train DATA=…
-WEIGHTS ?= /mnt/data/ent_cv/models/v1/weights/best.pt
-DATA    ?= /mnt/data/ent_cv/datasets/combined_new/data_with_val.yaml
-SOURCE  ?= /mnt/data/ent_cv/raw/test
-PREDICTIONS ?= /mnt/data/ent_cv/predictions/test
-
-.PHONY: train predict val compare
-train: ## Train a YOLO model  (override DATA=, EPOCHS=200, …)
-	uv run ent-cv train --data $(DATA) --model $(or $(MODEL),yolo11x.pt)
-
-predict: ## Run prediction  (set SOURCE=)
-	uv run ent-cv predict --source $(SOURCE) --weights $(WEIGHTS) --verbose
-
-val: ## Validate a model
-	uv run ent-cv val --weights $(WEIGHTS) --data $(DATA)
-
-compare: ## Compare trained models in MODELS_DIR
-	uv run ent-cv compare --models-dir /mnt/data/ent_cv/models --verbose
-
-postprocess: ## Run post-processing on predictions (set SOURCE=)
-	uv run ent-cv postprocess --raw-json $(PREDICTIONS)/detections.json
-
-batch:
-	uv run ent-cv batch /home/jaeho/ent_cv/ent_cv/modeling/configs/batch.yaml
 
 ## Testing & Linting
 lint: ## Run all linters (Ruff + ESLint)

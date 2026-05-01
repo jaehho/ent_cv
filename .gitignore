@@ -3,6 +3,7 @@
 
 # Models
 /models/
+*.pt
 
 # Environments and configs
 .env
@@ -31,3 +32,9 @@ __pycache__/
 CLAUDE.md
 # Django dev SQLite
 web/backend/db.sqlite3
+
+# Generated artifacts
+csv_exports/
+csv_exports_raw/
+case_instrument_summary.csv
+reports/
