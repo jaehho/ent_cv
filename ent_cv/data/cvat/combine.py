@@ -260,9 +260,9 @@ def main(
     dataset_dirs: Annotated[
         list[Path],
         typer.Argument(help="Two or more dataset directories to combine."),
-    ] = [DATASETS_DIR / "dataset_batch1", DATASETS_DIR / "dataset_batch2", DATASETS_DIR / "dataset_backup"],
+    ] = [DATASETS_DIR / "exports" / "batch1", DATASETS_DIR / "exports" / "batch2"],
     output_dir: Path = typer.Option(
-        DATASETS_DIR / "combined_test",
+        DATASETS_DIR / "dataset",
         "--output-dir", "-o",
         help="Destination directory for the combined dataset.",
     ),
@@ -273,12 +273,6 @@ def main(
             'dataset before merging. '
             'Example: \'{"Energy-based hemostasis": "Energy-based hemostasis without suction"}\''
         ),
-    ),
-
-    overwrite: bool = typer.Option(
-        False,
-        "--overwrite",
-        help="Remove and recreate output_dir if it already exists.",
     ),
 ):
     if len(dataset_dirs) < 2:
@@ -328,16 +322,9 @@ def main(
         raise typer.Exit(0)
 
     # --------------------------------------------------------- prepare output dir
-    if output_dir.exists():
-        if overwrite:
-            logger.info(f"Removing existing output dir: {output_dir}")
-            shutil.rmtree(output_dir)
-        else:
-            logger.error(
-                f"Output directory already exists: {output_dir}\n"
-                "Use --overwrite to replace it."
-            )
-            raise typer.Exit(1)
+    if output_dir.exists() and any(output_dir.iterdir()):
+        typer.confirm(f"'{output_dir}' is not empty. Overwrite?", abort=True)
+        shutil.rmtree(output_dir)
 
     images_out = output_dir / "images" / "train"
     labels_out = output_dir / "labels" / "train"

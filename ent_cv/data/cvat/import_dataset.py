@@ -81,7 +81,7 @@ def _build_annotations_zip(dataset_dir: Path, zip_path: Path) -> int:
 @app.command()
 def main(
     dataset_dir: Path = typer.Argument(
-        DATASETS_DIR / "combined_new",
+        DATASETS_DIR / "dataset",
         help="Dataset directory in Ultralytics YOLO layout (images/train/, labels/train/, data.yaml).",
     ),
     host: str = "https://cvat.jaehho.com",
@@ -93,6 +93,10 @@ def main(
     task_name: str = typer.Option("", help="Task name; defaults to the dataset directory name."),
     import_format: str = "Ultralytics YOLO Detection 1.0",
     delete_tmp_zip: bool = True,
+    project_id: int | None = typer.Option(
+        None, envvar="CVAT_PROJECT_ID",
+        help="CVAT project ID. Labels are inherited from the project.",
+    ),
 ):
     if not task_name:
         task_name = dataset_dir.name
@@ -123,13 +127,16 @@ def main(
             "Consider running combine.py with --label-aliases to normalise first."
         )
 
-    cvat_labels = [{"name": name} for name in label_list]
-
     # --------------------------------------------------------- CVAT
     logger.info(f"Connecting to CVAT at {host}:{port}...")
     with make_client(host=host, port=port, credentials=(username, password)) as client:
         logger.info(f"Creating task '{task_name}'...")
-        task = client.tasks.create(spec={"name": task_name, "labels": cvat_labels})
+        spec: dict = {"name": task_name}
+        if project_id is not None:
+            spec["project_id"] = project_id
+        else:
+            spec["labels"] = [{"name": name} for name in label_list]
+        task = client.tasks.create(spec=spec)
         logger.info(f"Task created with ID: {task.id}")
 
         logger.info(f"Uploading {len(image_paths)} images (local)...")

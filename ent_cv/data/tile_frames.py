@@ -1,3 +1,5 @@
+"""Tile a YOLO dataset into fixed-size overlapping patches."""
+
 from pathlib import Path
 from typing import List, Tuple
 from dataclasses import dataclass

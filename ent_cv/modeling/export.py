@@ -3,24 +3,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 import typer
-import yaml
 from loguru import logger
 from ultralytics import YOLO
 
+from ent_cv.modeling._utils import read_imgsz
+
 app = typer.Typer(add_completion=False)
-
-
-def _read_imgsz(weights: Path) -> Optional[int]:
-    args_yaml = weights.parent.parent / "args.yaml"
-    if not args_yaml.exists():
-        return None
-    try:
-        with args_yaml.open() as f:
-            val = yaml.safe_load(f).get("imgsz")
-        return int(val) if val is not None else None
-    except Exception as exc:
-        logger.warning(f"Could not read {args_yaml}: {exc}")
-        return None
 
 
 def run(
@@ -47,7 +35,7 @@ def run(
     if not weights.exists():
         raise FileNotFoundError(f"Weights not found: {weights}")
 
-    resolved_imgsz = imgsz or _read_imgsz(weights) or 640
+    resolved_imgsz = imgsz or read_imgsz(weights) or 640
     logger.info(f"Loading weights: {weights}")
     model = YOLO(str(weights))
 

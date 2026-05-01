@@ -25,6 +25,12 @@
       <div style="display:flex;gap:10px;align-items:center">
         <span v-if="username" style="font-size:12px;color:#666">{{ username }}</span>
         <button class="hdr-btn" @click="emit('logout')" style="font-size:11px">Sign Out</button>
+        <a
+          :href="`/api/cases/${props.id}/csv/${filterMode === 'filtered' ? '?mode=filtered' : ''}`"
+          class="hdr-btn"
+          style="text-decoration:none"
+          download
+        >↓ CSV</a>
         <div class="mode-toggle">
           <button
             class="mode-btn"
@@ -32,6 +38,7 @@
             @click="videoMode = 'raw'"
           >Raw + Overlay</button>
           <button
+            v-if="data?.has_prediction_frames"
             class="mode-btn"
             :class="{ 'mode-btn--active': videoMode === 'prediction' }"
             @click="videoMode = 'prediction'"
@@ -576,7 +583,6 @@ const hoverX = computed(() => {
   const pxPerFrame = W / visibleFrames;
   return (hoveredFrame.value - startFrame) * pxPerFrame;
 });
-const showStats         = ref(true);
 const playbackRate      = ref(1);
 const isDraggingTimeline = ref(false);
 const videoMode         = ref('raw');  // 'raw' | 'prediction'
@@ -594,7 +600,6 @@ const rightPanelWidth   = ref(280);
 const matrixContainerRef   = ref(null)
 const matrixContainerWidth = ref(0)
 let _matrixResizeObserver  = null
-const videoFlex         = ref(1);     // flex-grow of video area
 const rasterHeight      = ref(200);   // px height of raster canvas
 
 // ── Jump-filter state ─────────────────────────────────────────────────────
@@ -948,10 +953,6 @@ const classStats = computed(() => {
     pct: counts[idx] / totalFrames * 100,
   }));
 });
-
-const sortedClassStats = computed(() =>
-  classStats.value.filter(s => s.count > 0).sort((a, b) => b.pct - a.pct)
-);
 
 // Classes list display order — drives both left panel AND raster row order
 const displayedClasses = computed(() => {
@@ -1333,13 +1334,6 @@ function handleClassDoubleClick(idx) {
   }
 }
 
-function toggleAllClasses() {
-  if (!data.value) return;
-  enabledClasses.value = enabledClasses.value.size === data.value.classes.length
-    ? new Set()
-    : new Set(data.value.classes.map((_, i) => i));
-}
-
 // ── Drag-to-reorder handlers (custom mode only) ──────────────────────
 let _justDragged = false;
 
@@ -1387,11 +1381,6 @@ function handleClickOutside(e) {
   if (!dropdown) {
     showSortDropdown.value = false;
   }
-}
-
-function onZoomInput(e) {
-  zoomLevel.value = parseFloat(e.target.value);
-  panOffset.value = Math.min(panOffset.value, 1 - 1 / zoomLevel.value);
 }
 
 // ── Panel resize handlers ──────────────────────────────────────────────────
@@ -1978,17 +1967,11 @@ onUnmounted(() => {
   padding: 10px 20px; display: flex; align-items: center; justify-content: space-between;
   border-bottom: 1px solid #1a1a24; background: #08080e; flex-shrink: 0;
 }
-.header-title {
-  font-size: 18px; font-weight: 700;
-  background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
 .hdr-btn {
   padding: 6px 14px; border: 1px solid #2a2a35; border-radius: 5px;
   color: #999; font-size: 13px; cursor: pointer; background: transparent;
   font-family: 'JetBrains Mono', monospace;
 }
-.hdr-btn--active { background: #1a1a2e; }
 .mode-toggle {
   display: flex; border: 1px solid #2a2a35; border-radius: 5px; overflow: hidden;
   font-family: 'JetBrains Mono', monospace;
@@ -2063,11 +2046,6 @@ onUnmounted(() => {
 .frame-input:focus {
   border-bottom-color: #4ecdc4;
 }
-.text-btn {
-  font-size: 12px; color: #666; background: none; border: none;
-  cursor: pointer; font-family: inherit; padding: 2px 6px;
-}
-
 .custom-dropdown {
   position: relative;
   display: inline-flex;
@@ -2224,12 +2202,6 @@ onUnmounted(() => {
   transition: background 0.15s;
 }
 .resize-handle--row:hover, .resize-handle--row:active { background: rgba(78,205,196,0.18); }
-.det-card {
-  padding: 10px; margin-bottom: 6px; border-radius: 8px;
-  background: #0c0c16; border: 1px solid #1a1a24;
-}
-.det-dot { width: 8px; height: 8px; border-radius: 2px; }
-
 /* ── Post-process button ────────────────────────────────────────────────── */
 .pp-btn {
   position: relative; overflow: hidden; width: 100%;

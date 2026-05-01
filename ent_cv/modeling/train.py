@@ -1,7 +1,7 @@
 """Train a YOLO model."""
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 import typer
 from loguru import logger
@@ -22,11 +22,14 @@ def run(
     rect: bool = True,
     scale: float = 0.0,
     device: str = "0",
+    project: Path | None = None,
 ) -> Any:
     """Train a YOLO model. Returns the YOLO results object."""
     data = Path(data)
     if not data.exists():
         raise FileNotFoundError(f"Dataset YAML not found: {data}")
+
+    out_dir = Path(project) if project else MODELS_DIR
 
     model_p = Path(model)
     if model_p.suffix == ".pt":
@@ -41,11 +44,11 @@ def run(
     logger.info(f"Loading {yolo_model_path}…")
     model_obj = cast(Any, YOLO(yolo_model_path))
     logger.info(f"Dataset:  {data}")
-    logger.info(f"Output:   {MODELS_DIR / model_name}")
+    logger.info(f"Output:   {out_dir / model_name}")
 
     results = model_obj.train(
         data=str(data),
-        project=str(MODELS_DIR),
+        project=str(out_dir),
         name=model_name,
         pretrained=False,
         verbose=True,
@@ -57,7 +60,7 @@ def run(
         scale=scale,
     )
 
-    logger.success(f"Training complete — {MODELS_DIR / model_name / 'weights' / 'best.pt'}")
+    logger.success(f"Training complete — {out_dir / model_name / 'weights' / 'best.pt'}")
     return results
 
 

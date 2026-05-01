@@ -1,3 +1,5 @@
+"""Export a CVAT task as an Ultralytics YOLO dataset."""
+
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -36,7 +38,7 @@ def main(
         logger.info(f"Found task: '{task.name}'")
 
         if output_dir is None:
-            output_dir = DATASETS_DIR / task.name
+            output_dir = DATASETS_DIR / "exports" / task.name
 
         logger.info(f"Exporting as '{export_format}' to: {zip_path}")
         if output_dir.exists() and any(output_dir.iterdir()):

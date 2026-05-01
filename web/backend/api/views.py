@@ -1,4 +1,6 @@
+import csv
 from functools import wraps
+import io
 import json
 import os
 from pathlib import Path
@@ -340,11 +342,18 @@ def detections(request, case):
         else None
     )
 
+    # Check if any _frames directories exist for this case
+    pred_case_dir = PREDICTIONS_DIR / case
+    has_prediction_frames = any(
+        d.is_dir() and d.name.endswith("_frames") for d in pred_case_dir.iterdir()
+    )
+
     enriched = {
         "fps": fps,
         "total_frames": total_frames,
         "classes": classes,
         "results": results,
+        "has_prediction_frames": has_prediction_frames,
     }
     if parts:
         enriched["parts"] = parts
@@ -503,3 +512,79 @@ def filtered_summary(request, case):
     with open(summary_path) as f:
         data = json.load(f)
     return JsonResponse(data, safe=False)
+
+
+@require_GET
+@api_login_required
+def export_csv(request, case):
+    """Export detections as a CSV file.
+
+    Query params:
+        mode=filtered  → export filtered_detections.json instead of detections.json
+    """
+    if not _validate_case_name(case):
+        return HttpResponseBadRequest("Invalid case name")
+
+    mode = request.GET.get("mode", "raw")
+    if mode == "filtered":
+        det_path = PREDICTIONS_DIR / case / "filtered_detections.json"
+    else:
+        det_path = PREDICTIONS_DIR / case / "detections.json"
+    if not det_path.exists():
+        return HttpResponseNotFound(f"{det_path.name} not found")
+
+    try:
+        with open(det_path) as f:
+            raw_detections = json.load(f)
+    except json.JSONDecodeError:
+        return HttpResponseBadRequest("Detections file is corrupted")
+
+    # Unwrap filtered wrapper
+    if not isinstance(raw_detections, list) and isinstance(
+        raw_detections.get("detections"), list
+    ):
+        raw_detections = raw_detections["detections"]
+
+    # Detect format: flat vs grouped
+    is_flat = len(raw_detections) > 0 and not isinstance(
+        raw_detections[0].get("detections"), list
+    )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["frame", "class_id", "class_name", "confidence", "x1", "y1", "x2", "y2"])
+
+    if is_flat:
+        for d in raw_detections:
+            b = d.get("box", {})
+            writer.writerow([
+                d.get("frame", ""),
+                d.get("class", ""),
+                d.get("name", ""),
+                d.get("confidence", ""),
+                b.get("x1", ""),
+                b.get("y1", ""),
+                b.get("x2", ""),
+                b.get("y2", ""),
+            ])
+    else:
+        for row in raw_detections:
+            frame = row.get("frame", "")
+            for d in row.get("detections", []):
+                bbox = d.get("bbox", [None] * 4)
+                writer.writerow([
+                    frame,
+                    d.get("class_id", ""),
+                    d.get("class_name", ""),
+                    d.get("confidence", ""),
+                    bbox[0] if len(bbox) > 0 else "",
+                    bbox[1] if len(bbox) > 1 else "",
+                    bbox[2] if len(bbox) > 2 else "",
+                    bbox[3] if len(bbox) > 3 else "",
+                ])
+
+    suffix = "_filtered" if mode == "filtered" else ""
+    filename = f"{case}{suffix}_detections.csv"
+    response = HttpResponse(buf.getvalue(), content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response

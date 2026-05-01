@@ -27,9 +27,6 @@ PRIORITY_CASES = [
 
 MODELS_DIR = DATA_DIR / "models"
 
-REPORTS_DIR = PROJ_ROOT / "reports"
-FIGURES_DIR = REPORTS_DIR / "figures"
-
 # Shared metric key mappings used by train.py, batch.py, val.py, etc.
 TRAIN_METRIC_KEYS: list[tuple[str, str]] = [
     ("mAP50", "metrics/mAP50(B)"),
@@ -52,6 +49,9 @@ LABELS = [
     "Suction bovie",
     "Microdebrider",
     "Drill",
+    "Empty Hand",
+    "Not Sure",
+    "Patient",
 ]
 
 # If tqdm is installed, configure loguru with tqdm.write

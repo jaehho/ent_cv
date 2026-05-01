@@ -9,4 +9,5 @@ urlpatterns = [
     path("api/cases/<str:case>/raw/<str:filename>", views.raw_video),
     path("api/cases/<str:case>/postprocess/", views.postprocess_case),
     path("api/cases/<str:case>/filtered-summary/", views.filtered_summary),
+    path("api/cases/<str:case>/csv/", views.export_csv),
 ]

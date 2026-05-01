@@ -1,13 +1,9 @@
 operation: postprocess
-
 defaults:
   method: run_length
   min_duration_sec: 3.0
   gap_fill_sec: 3.0
-  window_sec: 3.0
-  vote_threshold: 0.5
   confidence_threshold: 0.60
-
 runs:
   - raw_json: /mnt/data/ent_cv/predictions/20260205_01/detections.json
   - raw_json: /mnt/data/ent_cv/predictions/20260205_03/detections.json

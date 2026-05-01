@@ -1,4 +1,5 @@
 """Run Ultralytics evolutionary hyperparameter tuning."""
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, cast
 
@@ -29,7 +30,7 @@ def run(
 
     model_p = Path(model)
     yolo_path = str(model_p) if model_p.suffix == ".pt" else f"{model}.pt"
-    tune_dir = MODELS_DIR / "tune"
+    tune_dir = MODELS_DIR / f"tune_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     tune_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Loading {yolo_path}…")

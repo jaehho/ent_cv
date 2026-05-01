@@ -10,11 +10,3 @@ export function formatTime(seconds) {
   return `${m}:${String(s).padStart(2, "0")}.${String(ms).padStart(2, "0")}`;
 }
 
-// Format integer seconds as H:MM:SS for fps=1 (real-time) mode
-export function formatRealTime(totalSeconds) {
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-

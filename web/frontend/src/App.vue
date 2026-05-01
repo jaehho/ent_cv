@@ -9,7 +9,6 @@ import LoginForm from "./components/LoginForm.vue";
 
 const authenticated = ref(false);
 const username = ref("");
-const checking = ref(true);
 
 onMounted(async () => {
   try {
@@ -20,7 +19,6 @@ onMounted(async () => {
       username.value = data.username;
     }
   } catch { /* not authenticated */ }
-  checking.value = false;
 });
 
 function onAuth(user) {

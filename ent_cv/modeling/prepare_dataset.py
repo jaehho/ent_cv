@@ -1,4 +1,9 @@
-"""Prepare a dataset by auto-splitting training data into train/val splits."""
+"""Prepare a dataset by auto-splitting training data into train/val splits.
+
+Splits are case-level: all frames from the same surgical case stay in the
+same split to prevent data leakage from temporal/patient correlation.
+"""
+import re
 import random
 from pathlib import Path
 
@@ -27,6 +32,28 @@ def resolve_image_paths(raw_paths: list[str], dataset_dir: Path) -> list[str]:
     return resolved
 
 
+_CASE_RE = re.compile(r"^(.+?)_[Pp]art\d+")
+_FRAME_RE = re.compile(r"^(.+)_f\d+$")
+
+
+def _extract_case(image_path: str) -> str:
+    """Extract the case identifier from an image path.
+
+    Naming convention: {case}_Part{N}_f{frame_idx}.{ext}
+    e.g. 20251113_02_Part1_f003000.png → 20251113_02
+
+    Falls back to video stem (strip _f{digits}) if no _Part found.
+    """
+    stem = Path(image_path).stem
+    m = _CASE_RE.match(stem)
+    if m:
+        return m.group(1)
+    m = _FRAME_RE.match(stem)
+    if m:
+        return m.group(1)
+    return stem
+
+
 def run(dataset_dir: Path, val_split: float = 0.2, seed: int = 42) -> None:
     """Split training data into train/val and write data_with_val.yaml."""
     yaml_path = dataset_dir / "data.yaml"
@@ -51,12 +78,27 @@ def run(dataset_dir: Path, val_split: float = 0.2, seed: int = 42) -> None:
     if not all_images:
         raise RuntimeError("No images resolved — check dataset directory and train.txt paths.")
 
+    # Group by case — all frames from a surgical case stay in the same split
+    cases: dict[str, list[str]] = {}
+    for img in all_images:
+        cases.setdefault(_extract_case(img), []).append(img)
+
+    case_keys = sorted(cases.keys())
     random.seed(seed)
-    random.shuffle(all_images)
-    n_val = max(1, int(len(all_images) * val_split))
-    val_images = all_images[:n_val]
-    train_images = all_images[n_val:]
-    logger.info(f"Split: {len(train_images)} train / {len(val_images)} val")
+    random.shuffle(case_keys)
+
+    n_val_cases = max(1, round(len(case_keys) * val_split))
+    val_case_set = set(case_keys[:n_val_cases])
+
+    val_images = [img for key in case_keys if key in val_case_set for img in cases[key]]
+    train_images = [img for key in case_keys if key not in val_case_set for img in cases[key]]
+
+    logger.info(f"Cases: {len(case_keys)} total, {n_val_cases} val, {len(case_keys) - n_val_cases} train")
+    for key in sorted(val_case_set):
+        logger.info(f"  val:   {key} ({len(cases[key])} images)")
+    for key in sorted(set(case_keys) - val_case_set):
+        logger.info(f"  train: {key} ({len(cases[key])} images)")
+    logger.info(f"Split: {len(train_images)} train / {len(val_images)} val images")
 
     new_train_txt = dataset_dir / "train_split.txt"
     new_val_txt = dataset_dir / "val_split.txt"

@@ -17,6 +17,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from ent_cv.config import MODELS_DIR
+
 app = typer.Typer()
 console = Console()
 
@@ -29,10 +31,74 @@ SORT_KEYS = {
 }
 _SORT_HELP = "Metric to rank by: map50 | map50-95 | precision | recall"
 
+# Arg keys to hide from --diff (metadata, IO paths, run identity, display flags).
+_DIFF_EXCLUDE = {
+    "save_dir", "name", "project", "data", "task", "mode", "save", "plots",
+    "show", "visualize", "save_frames", "save_conf", "save_crop",
+    "show_labels", "show_conf", "show_boxes", "line_width", "format",
+    "keras", "optimize", "int8", "dynamic", "simplify", "opset", "workspace",
+    "nms", "verbose", "save_txt", "save_json", "save_period", "exist_ok",
+    "device", "tracker", "embed", "retina_masks", "dnn", "half",
+    "stream_buffer", "vid_stride", "source", "resume", "cfg", "profile",
+    "compile",
+}
+
+_TYPE_STYLE = {
+    "scratch":    "blue",
+    "pretrained": "cyan",
+    "fine-tune":  "magenta",
+    "unknown":    "dim",
+}
+
 
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
+
+def _detect_model_type(base_model_arg: str) -> tuple[str, Optional[str]]:
+    """Classify a training run by its ``model:`` arg.
+
+    Returns (model_type, parent_run). parent_run is only set for fine-tune runs.
+
+    - ``.yaml`` → ``scratch`` (random init from architecture file)
+    - ``.pt`` with a path containing ``models/`` → ``fine-tune`` (local weights)
+    - ``.pt`` without such a path → ``pretrained`` (Ultralytics COCO download)
+    """
+    base_str = str(base_model_arg)
+    if base_str.endswith(".yaml"):
+        return "scratch", None
+    if "/" in base_str and "models" in base_str:
+        parts = Path(base_str).parts
+        parent = None
+        for i, part in enumerate(parts):
+            if part == "models" and i + 1 < len(parts):
+                parent = parts[i + 1]
+                break
+        if parent is None:
+            parent = Path(base_str).parent.parent.name
+        return "fine-tune", parent
+    if base_str.endswith(".pt"):
+        return "pretrained", None
+    return "unknown", None
+
+def _read_nc(model_dir: Path) -> int | None:
+    """Read number of classes from the best.pt checkpoint."""
+    weights = model_dir / "weights" / "best.pt"
+    if not weights.exists():
+        return None
+    try:
+        import torch
+
+        ckpt = torch.load(weights, map_location="cpu", weights_only=False)
+        model = ckpt.get("model")
+        if hasattr(model, "nc"):
+            return int(model.nc)
+        if hasattr(model, "names"):
+            return len(model.names)
+    except Exception:
+        return None
+    return None
+
 
 def _parse_args_yaml(model_dir: Path) -> dict:
     args_file = model_dir / "args.yaml"
@@ -97,25 +163,18 @@ def _collect_model_info(model_dir: Path) -> Optional[dict]:
     metrics = _parse_results_csv(model_dir)
 
     base_model_arg = args.get("model", "unknown")
-    is_finetune = "/" in str(base_model_arg) and "models" in str(base_model_arg)
-
-    parent_run = None
-    if is_finetune:
-        parts = Path(str(base_model_arg)).parts
-        for i, part in enumerate(parts):
-            if part == "models" and i + 1 < len(parts):
-                parent_run = parts[i + 1]
-                break
-        if parent_run is None:
-            parent_run = Path(str(base_model_arg)).parent.parent.name
+    model_type, parent_run = _detect_model_type(str(base_model_arg))
+    is_finetune = model_type == "fine-tune"
+    base_stem = Path(str(base_model_arg)).stem or str(base_model_arg)
 
     return {
         "name":          model_dir.name,
         "path":          model_dir,
-        "base_model":    (Path(str(base_model_arg)).stem if is_finetune
-                          else str(base_model_arg).replace(".yaml", "").replace(".pt", "")),
-        "is_finetune":   is_finetune,
+        "base_model":    base_stem,
+        "model_type":    model_type,
+        "is_finetune":   is_finetune,  # kept for backward-compat inside this module
         "parent_run":    parent_run,
+        "nc":            _read_nc(model_dir),
         "epochs_trained": metrics.get("_total_epochs") or int(args.get("epochs", 0) or 0),
         "best_epoch":    metrics.get("_best_epoch"),
         "epochs_config": int(args.get("epochs", 0) or 0),
@@ -132,6 +191,8 @@ def _collect_model_info(model_dir: Path) -> Optional[dict]:
         "val_box_loss":  metrics.get("val/box_loss"),
         "val_cls_loss":  metrics.get("val/cls_loss"),
         "evaluated":     (model_dir / "evaluation" / "run").exists(),
+        "raw_args":      args,
+        "raw_metrics":   metrics,
     }
 
 
@@ -140,18 +201,20 @@ def _collect_model_info(model_dir: Path) -> Optional[dict]:
 # ---------------------------------------------------------------------------
 
 def run(models_dir: Path, sort_by: str) -> list[dict]:
-    """Scan models_dir, collect info, and return all models sorted best→worst."""
+    """Scan models_dir recursively, collect info, and return all models sorted best→worst."""
     if not models_dir.exists():
         raise FileNotFoundError(f"Models directory not found: {models_dir}")
 
     models: list[dict] = []
-    for d in sorted(models_dir.iterdir()):
-        if not d.is_dir():
-            continue
-        info = _collect_model_info(d)
+    for best_pt in sorted(models_dir.rglob("weights/best.pt")):
+        model_dir = best_pt.parent.parent
+        info = _collect_model_info(model_dir)
         if info is None:
-            logger.debug(f"Skipping {d.name} — no best.pt")
             continue
+        # Derive source from relative path (e.g. "sweep_.../phase1_scout" or "" for standalone)
+        rel = model_dir.relative_to(models_dir)
+        parts = rel.parts
+        info["source"] = str(Path(*parts[:-1])) if len(parts) > 1 else ""
         models.append(info)
 
     if not models:
@@ -179,6 +242,7 @@ def _make_ranking_table(ranked: list[dict], sort_by: str = "map50") -> Table:
     )
     table.add_column("#",        style="bold",         justify="right",  width=3,  no_wrap=True)
     table.add_column("Model",    style="white",         min_width=20)
+    table.add_column("Source",                          min_width=12)
     table.add_column("Type",                            justify="center", width=10, no_wrap=True)
     table.add_column("mAP50",    style="green bold",    justify="right",  min_width=8,  no_wrap=True)
     table.add_column("mAP50-95", style="green",         justify="right",  min_width=9,  no_wrap=True)
@@ -186,6 +250,7 @@ def _make_ranking_table(ranked: list[dict], sort_by: str = "map50") -> Table:
     table.add_column("Recall",                          justify="right",  min_width=8,  no_wrap=True)
     table.add_column("Ep (t/b)",                        justify="right",  width=9,  no_wrap=True)
     table.add_column("Imgsz",                           justify="right",  width=6,  no_wrap=True)
+    table.add_column("NC",                              justify="right",  width=4,  no_wrap=True)
     table.add_column("Dataset",                         min_width=12)
 
     best_map50 = ranked[0].get("map50") if ranked else None
@@ -193,16 +258,19 @@ def _make_ranking_table(ranked: list[dict], sort_by: str = "map50") -> Table:
     for rank, m in enumerate(ranked, 1):
         map50_val = m.get("map50")
         is_best = map50_val is not None and map50_val == best_map50
-        type_style = "magenta" if m["is_finetune"] else "blue"
-        model_type = "fine-tune" if m["is_finetune"] else "scratch"
+        model_type = m.get("model_type", "unknown")
+        type_style = _TYPE_STYLE.get(model_type, "dim")
         best_ep = m.get("best_epoch")
         ep_str = str(m["epochs_trained"]) + (f"/{best_ep}" if best_ep and best_ep != m["epochs_trained"] else "")
+        source = m.get("source", "")
         table.add_row(
-            str(rank), m["name"],
+            str(rank), m["name"], source or "\u2014",
             f"[{type_style}]{model_type}[/{type_style}]",
             _fmt(map50_val), _fmt(m.get("map50_95")),
             _fmt(m.get("precision")), _fmt(m.get("recall")),
-            ep_str, str(m["imgsz"]), m["dataset"],
+            ep_str, str(m["imgsz"]),
+            str(m["nc"]) if m.get("nc") is not None else "\u2014",
+            m["dataset"],
             style="bold yellow" if is_best else "",
         )
     return table
@@ -215,6 +283,7 @@ def _make_detail_table(models: list[dict]) -> Table:
         show_lines=False, expand=True,
     )
     table.add_column("Model",      min_width=20)
+    table.add_column("Source",     min_width=12)
     table.add_column("Base",       width=14,  no_wrap=True)
     table.add_column("Parent run", min_width=20)
     table.add_column("Ep cfg",     justify="right", width=7,  no_wrap=True)
@@ -227,8 +296,9 @@ def _make_detail_table(models: list[dict]) -> Table:
         parent = m.get("parent_run") or "\u2014"
         if len(parent) > 32:
             parent = parent[:29] + "..."
+        source = m.get("source", "")
         table.add_row(
-            m["name"], m["base_model"], parent,
+            m["name"], source or "\u2014", m["base_model"], parent,
             str(m["epochs_config"]), str(m["batch"]),
             "\u2713" if m["rect"] else "\u2717",
             _fmt(m.get("scale"), 2), str(m["optimizer"]),
@@ -245,8 +315,9 @@ def _print_summary(ranked: list[dict]) -> None:
         return
 
     best, worst = ranked[0], ranked[-1]
-    finetunes = [m for m in ranked if m["is_finetune"]]
-    scratch   = [m for m in ranked if not m["is_finetune"]]
+    by_type: dict[str, list[dict]] = {}
+    for m in ranked:
+        by_type.setdefault(m.get("model_type", "unknown"), []).append(m)
 
     console.print(f"  [bold green]Best:[/bold green]  [yellow]{best['name']}[/yellow]")
     console.print(f"    mAP@50:    {_fmt(best['map50'])}")
@@ -259,15 +330,34 @@ def _print_summary(ranked: list[dict]) -> None:
     console.print()
     console.print(f"  [bold red]Weakest:[/bold red]  {worst['name']}  (mAP50={_fmt(worst['map50'])})")
     console.print()
-    console.print(f"  [bold]Total:[/bold] {len(ranked)}  "
-                  f"([magenta]{len(finetunes)} fine-tune[/magenta], "
-                  f"[blue]{len(scratch)} from scratch[/blue])")
+    type_counts = "  ".join(
+        f"[{_TYPE_STYLE.get(t, 'dim')}]{len(ms)} {t}[/{_TYPE_STYLE.get(t, 'dim')}]"
+        for t, ms in by_type.items()
+    )
+    console.print(f"  [bold]Total:[/bold] {len(ranked)}  ({type_counts})")
 
-    if finetunes and scratch:
-        ft_avg = sum(m["map50"] for m in finetunes if m["map50"] is not None) / len(finetunes)
-        sc_avg = sum(m["map50"] for m in scratch if m["map50"] is not None) / len(scratch)
-        console.print(f"  Avg mAP50 — fine-tunes: [magenta]{ft_avg:.4f}[/magenta]  "
-                      f"from-scratch: [blue]{sc_avg:.4f}[/blue]")
+    nc_values = {m["nc"] for m in ranked if m.get("nc") is not None}
+    if len(nc_values) > 1:
+        console.print(
+            f"  [bold yellow]Mixed class counts across models: "
+            f"{sorted(nc_values)}[/bold yellow]"
+        )
+        console.print(
+            "    Metrics are not directly comparable between models "
+            "trained on different numbers of classes.\n"
+        )
+
+    if len(by_type) > 1:
+        lines = []
+        for t, ms in by_type.items():
+            vals = [m["map50"] for m in ms if m["map50"] is not None]
+            if not vals:
+                continue
+            avg = sum(vals) / len(vals)
+            style = _TYPE_STYLE.get(t, "dim")
+            lines.append(f"[{style}]{t}: {avg:.4f}[/{style}]")
+        if lines:
+            console.print("  Avg mAP50 — " + "  ".join(lines))
     console.print()
 
     # Fine-tune lineage
@@ -285,6 +375,114 @@ def _print_summary(ranked: list[dict]) -> None:
                 console.print("   " + line)
         console.print()
     console.rule()
+
+
+# ---------------------------------------------------------------------------
+# Diff view & CSV export
+# ---------------------------------------------------------------------------
+
+def _fmt_arg(value) -> str:
+    if value is None:
+        return "\u2014"
+    if isinstance(value, bool):
+        return "\u2713" if value else "\u2717"
+    if isinstance(value, float):
+        return f"{value:g}"
+    return str(value)
+
+
+def _find_differing_args(models: list[dict]) -> list[str]:
+    """Return sorted arg keys whose values differ across *models*."""
+    all_keys: set[str] = set()
+    for m in models:
+        all_keys |= set(m.get("raw_args", {}).keys())
+    all_keys -= _DIFF_EXCLUDE
+
+    differing: list[str] = []
+    _missing = object()
+    for k in sorted(all_keys):
+        vals = set()
+        for m in models:
+            v = m.get("raw_args", {}).get(k, _missing)
+            vals.add(repr(v))
+        if len(vals) > 1:
+            differing.append(k)
+    return differing
+
+
+def _make_diff_table(models: list[dict]) -> Optional[Table]:
+    """Table showing only hyperparameters that differ across runs."""
+    keys = _find_differing_args(models)
+    if not keys:
+        return None
+
+    table = Table(
+        title=f"Hyperparameter diff \u2014 {len(keys)} param{'s' if len(keys) != 1 else ''} differ across {len(models)} run{'s' if len(models) != 1 else ''}",
+        box=box.SIMPLE_HEAD, header_style="bold cyan",
+        show_lines=False, expand=True,
+    )
+    table.add_column("Model", min_width=20)
+    for k in keys:
+        table.add_column(k, justify="right", no_wrap=True)
+
+    for m in models:
+        args = m.get("raw_args", {})
+        row = [m["name"]] + [_fmt_arg(args.get(k)) for k in keys]
+        table.add_row(*row)
+    return table
+
+
+def _write_csv(models: list[dict], csv_path: Path, sort_by: str) -> int:
+    """Write one CSV row per model with all metrics and args. Returns row count."""
+    core_cols = [
+        "rank", "name", "source", "path", "model_type", "base_model",
+        "parent_run", "nc", "dataset", "imgsz", "map50", "map50_95",
+        "precision", "recall", "epochs_trained", "best_epoch", "epochs_config",
+    ]
+
+    metric_keys: set[str] = set()
+    arg_keys: set[str] = set()
+    for m in models:
+        metric_keys |= {k for k in m.get("raw_metrics", {}).keys() if not k.startswith("_")}
+        arg_keys |= set(m.get("raw_args", {}).keys())
+
+    metric_cols = sorted(metric_keys)
+    arg_cols = sorted(arg_keys)
+    all_cols = core_cols + metric_cols + [f"arg.{k}" for k in arg_cols]
+
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with csv_path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(all_cols)
+        for rank, m in enumerate(models, 1):
+            row = [
+                rank,
+                m["name"],
+                m.get("source", ""),
+                str(m["path"]),
+                m.get("model_type", ""),
+                m.get("base_model", ""),
+                m.get("parent_run") or "",
+                m.get("dataset", ""),
+                m.get("imgsz", ""),
+                m.get("map50") if m.get("map50") is not None else "",
+                m.get("map50_95") if m.get("map50_95") is not None else "",
+                m.get("precision") if m.get("precision") is not None else "",
+                m.get("recall") if m.get("recall") is not None else "",
+                m.get("epochs_trained", ""),
+                m.get("best_epoch") or "",
+                m.get("epochs_config", ""),
+            ]
+            raw_metrics = m.get("raw_metrics", {})
+            for k in metric_cols:
+                v = raw_metrics.get(k)
+                row.append("" if v is None else v)
+            raw_args = m.get("raw_args", {})
+            for k in arg_cols:
+                v = raw_args.get(k)
+                row.append("" if v is None else v)
+            writer.writerow(row)
+    return len(models)
 
 
 # ---------------------------------------------------------------------------
@@ -375,9 +573,13 @@ def _prompt_and_delete(all_ranked: list[dict], default_n: int = 0) -> None:
 
 @app.command()
 def main(
-    models_dir: Path = typer.Option("models", help="Directory containing trained model runs"),
+    models_dir: Path = typer.Option(MODELS_DIR, help="Directory containing trained model runs"),
     sort_by: str = typer.Option("map50", help="Metric to rank by: map50 | map50-95 | precision | recall"),
     verbose: bool = typer.Option(False, help="Show detailed training config table"),
+    diff: bool = typer.Option(False, help="Show only hyperparameters that differ across runs"),
+    csv_out: Optional[Path] = typer.Option(
+        None, "--csv", help="Write full results + all parameters to this CSV file",
+    ),
     weights_suffix: str = typer.Option("best", help="Weights file stem (best or last)"),
     delete: int = typer.Option(0, help="Default cleanup suggestion (0=keep all, +N=keep top N, -N=delete N worst)"),
     top: Optional[int] = typer.Option(None, help="Only display top N models"),
@@ -395,6 +597,19 @@ def main(
 
     if verbose:
         console.print(_make_detail_table(display))
+        console.print()
+
+    if diff:
+        diff_table = _make_diff_table(display)
+        if diff_table is None:
+            console.print("[dim]No differing hyperparameters across displayed runs.[/dim]")
+        else:
+            console.print(diff_table)
+        console.print()
+
+    if csv_out is not None:
+        n = _write_csv(ranked, csv_out, sort_by=sort_by)
+        console.print(f"[green]Wrote {n} rows to[/green] [yellow]{csv_out}[/yellow]")
         console.print()
 
     _print_summary(ranked)

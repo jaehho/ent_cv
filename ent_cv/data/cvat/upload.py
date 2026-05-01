@@ -1,3 +1,5 @@
+"""Upload extracted frames to a CVAT task via the share volume."""
+
 from pathlib import Path
 
 from dotenv import load_dotenv, find_dotenv
@@ -6,7 +8,7 @@ from cvat_sdk import make_client
 from cvat_sdk.core.proxies.tasks import ResourceType
 import typer
 
-from ent_cv.config import INTERIM_DATA_DIR, LABELS
+from ent_cv.config import LABELS
 
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
@@ -23,6 +25,10 @@ def main(
     task_name: str = "batch2",
     images_dir: Path = Path("/home/jaeho/ent_cv/data/processed/extracted_frames/batch2"),
     share_root: Path = Path("/home/jaeho/ent_cv/data"),
+    project_id: int | None = typer.Option(
+        None, envvar="CVAT_PROJECT_ID",
+        help="CVAT project ID. Labels are inherited from the project.",
+    ),
 ):
     image_paths = sorted(images_dir.rglob("*.jpg")) + sorted(images_dir.rglob("*.png"))
     if not image_paths:
@@ -30,17 +36,16 @@ def main(
         raise typer.Exit(1)
     logger.info(f"Found {len(image_paths)} images in {images_dir}")
 
-    labels = [{"name": name} for name in LABELS]
+    spec: dict = {"name": task_name}
+    if project_id is not None:
+        spec["project_id"] = project_id
+    else:
+        spec["labels"] = [{"name": name} for name in LABELS]
 
     logger.info(f"Connecting to CVAT at {host}:{port}...")
     with make_client(host=host, port=port, credentials=(username, password)) as client:
         logger.info(f"Creating task '{task_name}'...")
-        task = client.tasks.create(
-            spec={
-                "name": task_name,
-                "labels": labels,
-            }
-        )
+        task = client.tasks.create(spec=spec)
         logger.info(f"Task created with ID: {task.id}")
 
         logger.info("Registering server-side images (this may take a sec)...")

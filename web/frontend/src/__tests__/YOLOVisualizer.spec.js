@@ -100,16 +100,6 @@ function getSetupState(wrapper) {
   return wrapper.getCurrentComponent().setupState;
 }
 
-// ── Helper: get the raw ref (not unwrapped) from setupContext ─────────────────
-// We need the raw ref to be able to SET values on it in tests (for case-switch test).
-// Access via the component's internal _: setupContext.exposed is undefined for
-// script setup without defineExpose. Use the internal proxy refs map instead.
-function getRawRef(wrapper, name) {
-  const instance = wrapper.getCurrentComponent();
-  // In Vue 3 internals, refs live in the setup context's refs map
-  return instance.refs?.[name] ?? instance.setupState?.[name];
-}
-
 describe("YOLOVisualizer loadCase — BUG-01 and BUG-02", () => {
   beforeEach(() => {
     vi.spyOn(global, "fetch").mockResolvedValue({
@@ -149,10 +139,6 @@ describe("YOLOVisualizer loadCase — BUG-01 and BUG-02", () => {
 
     // Directly mutate the internal component state to simulate the user
     // having zoomed/panned/changed speed while viewing case-one.
-    // We access the underlying Vue internal refs via the component instance.
-    const internalRefs = wrapper.getCurrentComponent().setupContext?.expose
-      ?? wrapper.getCurrentComponent();
-
     // Use the setupState proxy — assignments go through the ref's .value setter
     // because Proxy traps set() and routes to the ref automatically
     state.zoomLevel = 3;

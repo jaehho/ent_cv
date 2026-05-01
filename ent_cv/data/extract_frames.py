@@ -1,3 +1,5 @@
+"""Extract sampled frames from surgical videos with optional enhancement."""
+
 from typing import Literal, Optional, overload
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor, Future
