@@ -2,8 +2,8 @@
 from pathlib import Path
 from typing import Any, Optional, cast
 
-import typer
 from loguru import logger
+import typer
 from ultralytics import YOLO
 
 from ent_cv.config import PREDICTIONS_DIR, VAL_METRIC_KEYS

@@ -3,13 +3,13 @@
 Splits are case-level: all frames from the same surgical case stay in the
 same split to prevent data leakage from temporal/patient correlation.
 """
-import re
-import random
 from pathlib import Path
+import random
+import re
 
+from loguru import logger
 import typer
 import yaml
-from loguru import logger
 
 app = typer.Typer(add_completion=False)
 

@@ -26,15 +26,15 @@ Other post-processing directions worth exploring (not yet implemented):
 
 from __future__ import annotations
 
-import json
 from fractions import Fraction
+import json
 from pathlib import Path
 from typing import Optional
 
+from loguru import logger
 import numpy as np
 import polars as pl
 import typer
-from loguru import logger
 
 app = typer.Typer(add_completion=False)
 

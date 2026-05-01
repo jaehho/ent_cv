@@ -7,14 +7,14 @@ To combine multiple datasets first, run combine.py:
     uv run ent_cv/data/cvat/combine.py /path/to/ds1 /path/to/ds2 --output-dir /path/to/combined
     uv run ent_cv/data/cvat/import.py /path/to/combined
 """
+from pathlib import Path
 import tempfile
 import zipfile
-from pathlib import Path
 
-from dotenv import load_dotenv, find_dotenv
-from loguru import logger
 from cvat_sdk import make_client
 from cvat_sdk.core.proxies.tasks import ResourceType
+from dotenv import find_dotenv, load_dotenv
+from loguru import logger
 import typer
 import yaml
 

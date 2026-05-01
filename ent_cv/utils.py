@@ -1,21 +1,20 @@
+from datetime import datetime, timedelta
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from functools import wraps
+import os
+from pathlib import Path
 import smtplib
 import socket
 import sys
 import time
 import traceback
-from datetime import datetime, timedelta
-from email import encoders
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from functools import wraps
-from pathlib import Path
 from typing import Callable, ParamSpec, TypeVar, cast
 
+from dotenv import find_dotenv, load_dotenv
 from loguru import logger
-
-from dotenv import load_dotenv, find_dotenv
-import os
 
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)

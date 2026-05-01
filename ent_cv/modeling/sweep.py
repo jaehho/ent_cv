@@ -11,18 +11,18 @@ Usage:
     uv run ent-cv sweep --data ... --dry-run
 """
 
-import gc
 from dataclasses import dataclass, field
 from datetime import datetime
+import gc
 from pathlib import Path
 from typing import Any
 
-import typer
-import yaml
 from loguru import logger
 from rich import box
 from rich.console import Console
 from rich.table import Table
+import typer
+import yaml
 
 from ent_cv.config import MODELS_DIR, TRAIN_METRIC_KEYS
 from ent_cv.utils import notify, send_email
@@ -364,19 +364,19 @@ def _print_dry_run(
     console.print(f"\n[bold]Phase 1: Architecture Scout[/bold]  ({scout_epochs} epochs)")
     console.print(f"  Architectures: {', '.join(architectures)}")
     console.print(f"  Sizes:         {', '.join(scout_sizes)}")
-    console.print(f"  Fixed:         imgsz=1024, rect=True, scale=0.0, batch=-1")
+    console.print("  Fixed:         imgsz=1024, rect=True, scale=0.0, batch=-1")
     console.print(f"  Runs:          {len(architectures)} arch x {len(scout_sizes)} sizes = {n_phase1}")
     console.print(f"  Select:        top {top_n} by mAP50\n")
 
     console.print(f"[bold]Phase 2: Hyperparameter Sweep[/bold]  ({sweep_epochs} epochs)")
-    console.print(f"  Hparam grid (per winning model):")
+    console.print("  Hparam grid (per winning model):")
     for imgsz, rect, scale in HPARAM_GRID:
         skip = " [dim](skip: done in Phase 1)[/dim]" if (imgsz, rect, scale) == SCOUT_BASELINE else ""
         console.print(f"    imgsz={imgsz}  rect={rect}  scale={scale}{skip}")
     console.print(f"  Runs:   {top_n} models x {n_hparam_new} new configs = {n_phase2}\n")
 
     console.print(f"[bold]Phase 3: Final Training[/bold]  ({final_epochs} epochs)")
-    console.print(f"  Runs:   1 (best from Phase 2)\n")
+    console.print("  Runs:   1 (best from Phase 2)\n")
 
     total = n_phase1 + n_phase2 + 1
     console.print(f"[bold]Total runs: {total}[/bold]")

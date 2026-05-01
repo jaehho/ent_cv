@@ -12,20 +12,20 @@ Usage:
 
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
 import re
 import shutil
 import subprocess
 import time
-from datetime import datetime
-from pathlib import Path
 from typing import Optional
 from urllib.parse import quote
 
+from loguru import logger
 import requests
 import typer
-from loguru import logger
 
-from ent_cv.config import INTERIM_DATA_DIR, EXTERNAL_DATA_DIR, PRIORITY_CASES, RAW_DATA_DIR
+from ent_cv.config import EXTERNAL_DATA_DIR, INTERIM_DATA_DIR, PRIORITY_CASES, RAW_DATA_DIR
 from ent_cv.utils import notify
 
 app = typer.Typer()
@@ -113,12 +113,16 @@ def _filter_tree(
     after_dt = datetime.strptime(after, "%Y-%m-%d") if after else None
     filtered: dict[str, list[str]] = {}
     for folder, files in tree.items():
-        if skip_empty and not files: continue
-        if only and folder not in only: continue
-        if exclude and folder in exclude: continue
+        if skip_empty and not files:
+            continue
+        if only and folder not in only:
+            continue
+        if exclude and folder in exclude:
+            continue
         if after_dt:
             try:
-                if datetime.strptime(folder[:8], "%Y%m%d") < after_dt: continue
+                if datetime.strptime(folder[:8], "%Y%m%d") < after_dt:
+                    continue
             except ValueError:
                 pass
         filtered[folder] = files
@@ -242,7 +246,7 @@ def main(
     if download_only:
         if not urls_file.exists():
             raise typer.Exit(code=1)
-        urls = [l.strip() for l in urls_file.read_text().splitlines() if l.strip()]
+        urls = [line.strip() for line in urls_file.read_text().splitlines() if line.strip()]
     else:
         with requests.Session() as session:
             session.cookies.update(_load_cookies(cookies_path))

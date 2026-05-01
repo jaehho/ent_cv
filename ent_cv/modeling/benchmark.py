@@ -2,8 +2,8 @@
 from pathlib import Path
 from typing import Any, Optional, cast
 
-import typer
 from loguru import logger
+import typer
 from ultralytics import YOLO
 
 from ent_cv.modeling._utils import read_imgsz

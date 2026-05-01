@@ -1,13 +1,13 @@
 """Run YOLO inference on a single source."""
 import json
+from pathlib import Path
 import shutil
 import subprocess
-from pathlib import Path
 from typing import Optional
 
+from loguru import logger
 import polars as pl
 import typer
-from loguru import logger
 from ultralytics import YOLO
 
 from ent_cv.config import PREDICTIONS_DIR

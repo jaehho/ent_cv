@@ -12,7 +12,6 @@ Usage:
 
 from __future__ import annotations
 
-import typer
 from cvat_sdk import make_client
 from cvat_sdk.api_client.api.labels_api import LabelsApi
 from cvat_sdk.api_client.api.projects_api import ProjectsApi
@@ -22,6 +21,7 @@ from cvat_sdk.api_client.model.patched_task_write_request import PatchedTaskWrit
 from cvat_sdk.api_client.model.project_write_request import ProjectWriteRequest
 from dotenv import find_dotenv, load_dotenv
 from loguru import logger
+import typer
 
 from ent_cv.config import LABELS
 from ent_cv.data.cvat.export_manual import _fetch_all_cvat_labels
@@ -45,10 +45,6 @@ def _fetch_all_tasks(client) -> list:
 
 def _get_project_label_names(client, project_id: int) -> set[str]:
     """Return the set of label names defined on a project."""
-    labels_api = LabelsApi(client.api_client)
-    labels = _fetch_all_cvat_labels(labels_api, project_id)
-    # LabelsApi.list supports project_id or task_id; we pass as kwarg
-    # but _fetch_all_cvat_labels uses task_id. Re-fetch via project proxy.
     project = client.projects.retrieve(project_id)
     return {lbl.name for lbl in project.get_labels()}
 

@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-import yaml
 from loguru import logger
+import yaml
 
 
 def read_imgsz(weights: Path) -> int | None:

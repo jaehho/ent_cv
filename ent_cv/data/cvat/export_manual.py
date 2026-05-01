@@ -24,19 +24,19 @@ Usage:
 
 from __future__ import annotations
 
+from pathlib import Path
 import re
 import shutil
 import sys
-from pathlib import Path
 from typing import Optional
 
-import typer
-import yaml
 from cvat_sdk import make_client
 from cvat_sdk.api_client.api.labels_api import LabelsApi
 from cvat_sdk.api_client.api.tasks_api import TasksApi
 from dotenv import find_dotenv, load_dotenv
 from loguru import logger
+import typer
+import yaml
 
 from ent_cv.config import DATASETS_DIR, LABELS
 
@@ -242,7 +242,6 @@ def main(
         labels_api = LabelsApi(client.api_client)
         cvat_labels = _fetch_all_cvat_labels(labels_api, task.id)
         cvat_label_by_id: dict[int, str] = {lbl.id: lbl.name for lbl in cvat_labels}
-        cvat_label_to_id: dict[str, int] = {lbl.name: lbl.id for lbl in cvat_labels}
 
         # 2. Frame dimensions from the task's data meta.
         tasks_api = TasksApi(client.api_client)

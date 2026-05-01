@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from dotenv import load_dotenv, find_dotenv
-from loguru import logger
 from cvat_sdk import make_client
 from cvat_sdk.core.proxies.tasks import ResourceType
+from dotenv import find_dotenv, load_dotenv
+from loguru import logger
 import typer
 
 from ent_cv.config import LABELS

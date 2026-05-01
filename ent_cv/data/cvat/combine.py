@@ -14,8 +14,8 @@ The output directory has the standard Ultralytics YOLO layout:
         labels/train/<stem>.txt
 """
 import json
-import shutil
 from pathlib import Path
+import shutil
 from typing import Annotated
 
 from loguru import logger

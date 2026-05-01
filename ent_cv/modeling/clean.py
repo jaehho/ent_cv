@@ -1,11 +1,11 @@
 """Remove prediction artifacts (frames, overlay videos, YOLO labels)."""
 
-import shutil
 from pathlib import Path
+import shutil
 from typing import Optional
 
-import typer
 from loguru import logger
+import typer
 
 from ent_cv.config import PREDICTIONS_DIR
 

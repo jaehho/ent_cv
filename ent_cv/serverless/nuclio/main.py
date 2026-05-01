@@ -1,10 +1,9 @@
-import json
 import base64
 import io
+import json
+
 from PIL import Image
-
 from ultralytics import YOLO
-
 
 WEIGHTS_PATH = "/opt/nuclio/best.pt"
 CONFIDENCE_THRESHOLD = 0.5

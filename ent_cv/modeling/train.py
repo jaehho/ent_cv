@@ -3,8 +3,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
-import typer
 from loguru import logger
+import typer
 from ultralytics import YOLO
 
 from ent_cv.config import MODELS_DIR, PRETRAINED_DIR, TRAIN_METRIC_KEYS

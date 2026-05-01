@@ -6,16 +6,16 @@ Usage:
 """
 
 import csv
-import shutil
 from pathlib import Path
+import shutil
 from typing import Optional
 
-import typer
-import yaml
 from loguru import logger
 from rich import box
 from rich.console import Console
 from rich.table import Table
+import typer
+import yaml
 
 from ent_cv.config import MODELS_DIR
 

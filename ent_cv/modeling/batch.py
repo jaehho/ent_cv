@@ -23,9 +23,9 @@ Usage:
 from pathlib import Path
 from typing import Any, Optional
 
+from loguru import logger
 import typer
 import yaml
-from loguru import logger
 
 from ent_cv.config import TRAIN_METRIC_KEYS
 from ent_cv.utils import notify
