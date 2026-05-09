@@ -38,3 +38,8 @@ csv_exports/
 csv_exports_raw/
 case_instrument_summary.csv
 reports/
+/spot_check.html
+
+# Compiled docs and derived figures (typst source is committed; outputs are not)
+docs/**/*.pdf
+docs/**/figures/
