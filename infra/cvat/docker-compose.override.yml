@@ -1,0 +1,62 @@
+# CVAT compose override for local self-hosting at https://cvat.jaehho.com
+# Layered on top of upstream cvat/docker-compose.yml + components/serverless/docker-compose.serverless.yml
+# Replaces the customizations that previously lived inside the jaehho/cvat fork.
+#
+# Active mechanisms:
+#   - cvat_share volume bind-mounts the project data root at /home/django/share
+#   - DJANGO_SETTINGS_MODULE=settings + a mounted local-settings.py overlay add
+#     CSRF_TRUSTED_ORIGINS for the cloudflared subdomain (upstream has no env var
+#     for this; see PR https://github.com/cvat-ai/cvat/pull/10283)
+#   - CVAT_NUCLIO_INVOKE_METHOD=dashboard works around Nuclio function port
+#     mismatches on host restart (issue cvat-ai/cvat#10307)
+#   - CVAT_BASE_URL drives URL generation for emails / API references
+#
+# Future cleanup: if you set TRAEFIK_ENTRYPOINTS_web_FORWARDEDHEADERS_TRUSTEDIPS
+# below, CVAT's existing SECURE_PROXY_SSL_HEADER will let Django infer the https
+# origin from cloudflared's X-Forwarded-Proto, and you can drop local-settings.py
+# entirely. See: https://github.com/cvat-ai/cvat/issues/8782
+
+services:
+  cvat_server:
+    environment:
+      DJANGO_SETTINGS_MODULE: settings
+      CVAT_BASE_URL: 'https://cvat.jaehho.com'
+      DJANGO_CSRF_TRUSTED_ORIGINS: 'https://cvat.jaehho.com'
+      CVAT_NUCLIO_INVOKE_METHOD: dashboard
+    volumes:
+      # Path resolves from --project-directory (cvat/), not from this file.
+      - ../infra/cvat/local-settings.py:/home/django/settings.py:ro
+      - cvat_share:/home/django/share:ro
+
+  cvat_worker_import:
+    volumes:
+      - cvat_share:/home/django/share:ro
+
+  cvat_worker_export:
+    volumes:
+      - cvat_share:/home/django/share:ro
+
+  cvat_worker_annotation:
+    environment:
+      CVAT_NUCLIO_INVOKE_METHOD: dashboard
+    volumes:
+      - cvat_share:/home/django/share:ro
+
+  cvat_worker_chunks:
+    volumes:
+      - cvat_share:/home/django/share:ro
+
+  # Uncomment to let Traefik trust X-Forwarded-Proto from cloudflared. Combined
+  # with CVAT's SECURE_PROXY_SSL_HEADER setting, Django will treat the request
+  # as https and CSRF will pass without local-settings.py. Replace 0.0.0.0/0
+  # with the specific cloudflared IP range if you want tighter scoping.
+  # traefik:
+  #   environment:
+  #     TRAEFIK_ENTRYPOINTS_web_FORWARDEDHEADERS_TRUSTEDIPS: "0.0.0.0/0"
+
+volumes:
+  cvat_share:
+    driver_opts:
+      type: none
+      device: /mnt/data/ent_cv
+      o: bind

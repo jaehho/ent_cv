@@ -55,23 +55,30 @@ clean-dry-run: ## Show what would be deleted (no changes)
 	uv run ent-cv clean --all --dry-run
 
 ## CVAT
-CVAT_HOST := cvat.jaehho.com
+# Compose layout: upstream cvat-ai/cvat submodule provides docker-compose.yml +
+# serverless layer; our customizations live in infra/cvat/ at the repo root.
+CVAT_HOST    := cvat.jaehho.com
+CVAT_VERSION ?= v2.64.0
+CVAT_OVERRIDE := $(REPO_ROOT)/infra/cvat/docker-compose.override.yml
 COMPOSE_FILES := \
 	-f cvat/docker-compose.yml \
 	-f cvat/components/serverless/docker-compose.serverless.yml \
-	-f cvat/docker-compose.override.yml
+	-f $(CVAT_OVERRIDE)
 
-export CVAT_HOST
+export CVAT_HOST CVAT_VERSION
 
-.PHONY: cvat-up cvat-down cvat-build cvat-superuser
-cvat-up: ## Start CVAT services
+.PHONY: cvat-up cvat-down cvat-pull cvat-config cvat-superuser
+cvat-up: ## Start CVAT services (pinned to $(CVAT_VERSION))
 	docker compose --project-directory cvat $(COMPOSE_FILES) up -d
 
 cvat-down: ## Stop CVAT services
 	docker compose --project-directory cvat $(COMPOSE_FILES) down
 
-cvat-build: ## Build CVAT services
-	docker compose --project-directory cvat $(COMPOSE_FILES) -f cvat/docker-compose.dev.yml build --pull
+cvat-pull: ## Pull CVAT images for the pinned version
+	docker compose --project-directory cvat $(COMPOSE_FILES) pull
+
+cvat-config: ## Print the merged compose config (debugging)
+	docker compose --project-directory cvat $(COMPOSE_FILES) config
 
 cvat-superuser: ## Create a CVAT superuser
 	docker exec -it cvat_server bash -ic 'python3 ~/manage.py createsuperuser'
