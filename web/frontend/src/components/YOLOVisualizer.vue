@@ -416,133 +416,94 @@ const currentTime = computed(() => {
   return currentFrame.value / fps;
 });
 
-const currentPartRawUrl = computed(() => {
-  if (!activeCaseName.value) return null;
-  let source = frameMap.value.get(currentFrame.value)?.source ?? null;
-  if (!source) {
-    const parts = data.value?.parts;
-    if (parts) {
-      for (const p of parts) {
-        if (currentFrame.value >= p.startFrame && currentFrame.value <= p.endFrame) {
-          source = p.source;
-          break;
-        }
-      }
-    }
-    if (!source) {
-      let bestStart = -1;
-      for (const [src, sf] of partStartFrame.value) {
-        if (sf <= currentFrame.value && sf > bestStart) {
-          bestStart = sf;
-          source = src;
-        }
-      }
-    }
+// Pre-sorted parts table — built once per data change, used for O(log n)
+// lookup of which part owns the current frame. Five separate currentPart*
+// computeds used to each do a fresh O(n) scan of partStartFrame; one shared
+// lookup beats that during scrubbing where currentFrame fires many times/sec.
+const sortedParts = computed(() => {
+  if (!data.value) return [];
+  // Server-provided `parts` (flat-format detections) include endFrame too — prefer them.
+  if (data.value.parts && data.value.parts.length > 0) {
+    return [...data.value.parts].sort((a, b) => a.startFrame - b.startFrame);
   }
-  if (!source) return null;
-  const partName = source.split('/').pop().replace(/\.mp4$/i, '');
-  return `/api/cases/${activeCaseName.value}/raw/${partName}.mp4`;
+  // Fallback: derive from the partStartFrame map (grouped detections).
+  const entries = [...partStartFrame.value.entries()]
+    .map(([source, startFrame]) => ({ source, startFrame }))
+    .sort((a, b) => a.startFrame - b.startFrame);
+  return entries.map((p, i) => ({
+    source: p.source,
+    startFrame: p.startFrame,
+    endFrame: i + 1 < entries.length ? entries[i + 1].startFrame - 1 : Infinity,
+  }));
+});
+
+// Binary search: largest `parts[i].startFrame <= frame`, or null if `frame` < first.
+function findPartForFrame(parts, frame) {
+  if (parts.length === 0 || frame < parts[0].startFrame) return null;
+  let lo = 0, hi = parts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1;
+    if (parts[mid].startFrame <= frame) lo = mid;
+    else hi = mid - 1;
+  }
+  return parts[lo];
+}
+
+// Single source of truth for "which part owns currentFrame". Direct frame-map
+// hit wins (handles the same global frame appearing in two parts if that ever
+// happens); binary search on sortedParts is the universal fallback.
+const currentPart = computed(() => {
+  if (!data.value || sortedParts.value.length === 0) return null;
+  const frame = currentFrame.value;
+  const entry = frameMap.value.get(frame);
+  let part = entry ? sortedParts.value.find(p => p.source === entry.source) : null;
+  if (!part) part = findPartForFrame(sortedParts.value, frame);
+  // Treat parts without a source path the same as no part — the old fallback
+  // chains all guarded `if (!source) return null` at the end, so this matches
+  // that behaviour (and is hit by detection fixtures that omit `source`).
+  if (!part || !part.source) return null;
+  const partName = part.source.split('/').pop().replace(/\.mp4$/i, '');
+  return {
+    source: part.source,
+    partName,
+    startFrame: part.startFrame,
+    startTs: partStartTs.value.get(part.source) ?? part.startFrame / (data.value.fps || 1),
+  };
+});
+
+const currentPartRawUrl = computed(() => {
+  const p = currentPart.value;
+  return p && activeCaseName.value
+    ? `/api/cases/${activeCaseName.value}/raw/${p.partName}.mp4`
+    : null;
 });
 
 const currentPartPredictionFrameUrl = computed(() => {
-  if (!activeCaseName.value) return null;
-
-  // Determine which source (clip) this frame belongs to.
-  // Prefer a direct detection entry; fall back to the parts boundary table
-  // (present when detections.json was flat-format) or the first-detection map.
-  let source = frameMap.value.get(currentFrame.value)?.source ?? null;
-  let actualStartFrame = null;
-
-  if (!source) {
-    // Use server-provided part boundaries when available (most accurate).
-    const parts = data.value?.parts;
-    if (parts) {
-      for (const p of parts) {
-        if (currentFrame.value >= p.startFrame && currentFrame.value <= p.endFrame) {
-          source = p.source;
-          actualStartFrame = p.startFrame;
-          break;
-        }
-      }
-    }
-    // Fallback: scan partStartFrame for the largest start ≤ currentFrame.
-    if (!source) {
-      let bestStart = -1;
-      for (const [src, sf] of partStartFrame.value) {
-        if (sf <= currentFrame.value && sf > bestStart) {
-          bestStart = sf;
-          source = src;
-        }
-      }
-    }
-  }
-
-  if (!source) return null;
-
-  // Resolve the actual part start frame (0-based global index of clip frame 0).
-  if (actualStartFrame === null) {
-    const parts = data.value?.parts;
-    if (parts) {
-      const p = parts.find(p => p.source === source);
-      actualStartFrame = p ? p.startFrame : (partStartFrame.value.get(source) ?? 0);
-    } else {
-      actualStartFrame = partStartFrame.value.get(source) ?? 0;
-    }
-  }
-
-  const partName = source.split('/').pop().replace(/\.mp4$/i, '');
+  const p = currentPart.value;
+  if (!p || !activeCaseName.value) return null;
   // Prediction frames are saved 1-indexed by Ultralytics (clip frame 0 → _1.jpg).
-  const localFrame = currentFrame.value - actualStartFrame + 1;
-  return `/api/cases/${activeCaseName.value}/predictions/${partName}_frames/${partName}_${localFrame}.jpg`;
+  const localFrame = currentFrame.value - p.startFrame + 1;
+  return `/api/cases/${activeCaseName.value}/predictions/${p.partName}_frames/${p.partName}_${localFrame}.jpg`;
 });
 
-// In prediction mode we show frames via <img>; no video element is needed.
-// currentPartVideoUrl returns null in prediction mode so the video watcher is a no-op.
+// Prediction mode shows frames via <img>; null URL suppresses the video watcher.
 const currentPartVideoUrl = computed(() =>
   videoMode.value === 'prediction' ? null : currentPartRawUrl.value
 );
 
+const currentPartName = computed(() => currentPart.value?.partName ?? null);
+
+const currentPartStartTs = computed(() => currentPart.value?.startTs ?? 0);
+
+// Local seconds within the current part — used to seek the freshly-loaded
+// <video> element after a part switch. Returns 0 when the part is unknown
+// (the old code returned currentFrame.value, which is frame count, not
+// seconds — clamped to video duration in practice).
 const currentPartTimestamp = computed(() => {
-  const entry = frameMap.value.get(currentFrame.value);
-  if (!entry) return currentFrame.value;
-  const fps = data.value.fps;
-  const startTs = partStartTs.value.get(entry.source) ?? 0;
-  return entry.frame / fps - startTs;
-});
-
-const currentPartName = computed(() => {
-  const frame = currentFrame.value;
-  const entry = frameMap.value.get(frame);
-  if (entry) {
-    return entry.source?.split('/').pop().replace(/\.mp4$/i, '') ?? null;
-  }
-  // Fallback: scan partStartFrame for the largest start frame ≤ currentFrame
-  let bestSource = null, bestStart = -1;
-  for (const [source, startFrame] of partStartFrame.value) {
-    if (startFrame <= frame && startFrame > bestStart) {
-      bestStart = startFrame;
-      bestSource = source;
-    }
-  }
-  return bestSource ? bestSource.split('/').pop().replace(/\.mp4$/i, '') : null;
-});
-
-// Start timestamp of whichever part is currently loaded in the video element.
-// Derived from currentFrame so it works correctly during part switches.
-// When currentFrame has no detection entry (sparse map), scan partStartFrame to find
-// whichever part's start frame is the largest value ≤ currentFrame.
-const currentPartStartTs = computed(() => {
-  const frame = currentFrame.value;
-  const entry = frameMap.value.get(frame);
-  if (entry) return partStartTs.value.get(entry.source) ?? 0;
-  let bestSource = null, bestStart = -1;
-  for (const [source, startFrame] of partStartFrame.value) {
-    if (startFrame <= frame && startFrame > bestStart) {
-      bestStart = startFrame;
-      bestSource = source;
-    }
-  }
-  return bestSource ? (partStartTs.value.get(bestSource) ?? 0) : 0;
+  const p = currentPart.value;
+  const fps = data.value?.fps;
+  if (!p || !fps) return 0;
+  return (currentFrame.value - p.startFrame) / fps;
 });
 
 // Precomputed raster label heights (avoid repeated template expressions)
@@ -1231,10 +1192,21 @@ watch(filterMode, async (newMode, oldMode) => {
   }
 });
 
-// Dependency watchers for raster & minimap
+// Raster (the per-class horizontal strip) carries the playhead, so it needs
+// to redraw on every frame change. The viewport box and the bars don't
+// change with currentFrame, so the raster is the only dependent here.
 watch(
   [filteredSparseMap, changedFrames, () => currentFrame.value, () => zoomLevel.value, () => panOffset.value],
-  () => scheduleDraws(6),  // 2 | 4 = raster + minimap
+  () => scheduleDraws(2),  // raster
+  { flush: "post" }
+);
+
+// Minimap shows the whole timeline at low resolution + a viewport indicator;
+// it doesn't draw a playhead. Splitting it off the currentFrame dep means
+// scrubbing no longer repaints the minimap once per frame.
+watch(
+  [filteredSparseMap, changedFrames, () => zoomLevel.value, () => panOffset.value],
+  () => scheduleDraws(4),  // minimap
   { flush: "post" }
 );
 
