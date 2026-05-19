@@ -24,7 +24,7 @@
               class="case-card"
               @click="goToCase(c.name)"
             >
-              <div class="case-icon">📁</div>
+              <div class="case-icon"><Folder :size="22" :stroke-width="1.5" /></div>
               <div class="case-name">{{ c.display }}</div>
             </button>
           </div>
@@ -37,6 +37,7 @@
 <script setup>
 import { ref, computed, shallowRef, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import { Folder } from "lucide-vue-next";
 
 defineProps({ username: { type: String, default: "" } });
 const emit = defineEmits(["logout"]);
@@ -98,11 +99,11 @@ onMounted(() => {
 <style scoped>
 * { box-sizing: border-box; }
 .upload-root {
-  height: 100vh; background: #06060a;
+  height: 100vh; background: var(--bg-0);
   display: flex; align-items: flex-start; justify-content: center;
   overflow-y: auto;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  color: #e0e0e6;
+  font-family: var(--font-mono);
+  color: var(--text);
 }
 .upload-center { text-align: center; max-width: 860px; width: 100%; padding: 40px; margin: 0 auto; }
 .upload-header {
@@ -110,38 +111,37 @@ onMounted(() => {
   margin-bottom: 24px;
 }
 .sign-out-area { display: flex; gap: 10px; align-items: center; }
-.username { font-size: 12px; color: #666; }
+.username { font-size: 12px; color: var(--text-faint); }
 .sign-out-btn {
   font-size: 11px; font-family: inherit; cursor: pointer;
-  background: none; border: 1px solid #333; color: #888;
+  background: none; border: 1px solid var(--border-strong); color: var(--text-dim);
   padding: 4px 12px; border-radius: 4px; transition: border-color 0.2s, color 0.2s;
 }
-.sign-out-btn:hover { border-color: #4ecdc4; color: #4ecdc4; }
-.upload-label { font-size: 13px; letter-spacing: 6px; color: #555; margin-bottom: 12px; text-transform: uppercase; }
+.sign-out-btn:hover { border-color: var(--accent); color: var(--accent); }
+.upload-label { font-size: 13px; letter-spacing: 6px; color: var(--text-faint); margin-bottom: 12px; text-transform: uppercase; }
 .upload-title {
   font-size: 42px; font-weight: 700; margin: 0 0 8px;
-  background: linear-gradient(135deg, #ff6b6b, #4ecdc4, #45b7d1);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  color: var(--text);
 }
-.upload-subtitle { color: #666; font-size: 14px; margin-bottom: 48px; line-height: 1.6; }
+.upload-subtitle { color: var(--text-faint); font-size: 14px; margin-bottom: 48px; line-height: 1.6; }
 .date-group-label {
-  font-size: 13px; font-weight: 600; color: #4ecdc4; letter-spacing: 1px;
+  font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 1px;
   text-transform: none; margin-bottom: 10px; padding-bottom: 4px;
-  border-bottom: 1px solid #1a1a25;
+  border-bottom: 1px solid var(--border);
 }
 .cases-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px; width: 100%; margin-bottom: 8px;
 }
 .case-card {
-  padding: 20px 16px; border: 1px dashed #2a2a35;
-  border-radius: 10px; cursor: pointer; background: #0c0c14;
+  padding: 20px 16px; border: 1px dashed var(--border-strong);
+  border-radius: 10px; cursor: pointer; background: var(--bg-2);
   transition: border-color 0.2s, background 0.2s;
-  text-align: center; font-family: inherit; color: #ccc;
+  text-align: center; font-family: inherit; color: var(--text);
 }
-.case-card:hover { border-color: #4ecdc4; background: #0e0e18; }
+.case-card:hover { border-color: var(--accent); background: var(--bg-hover); }
 .case-icon { font-size: 22px; margin-bottom: 8px; }
 .case-name { font-size: 11px; font-weight: 600; word-break: break-all; }
-.picker-status { font-size: 13px; color: #555; padding: 32px 0; }
-.picker-status code { color: #4ecdc4; }
+.picker-status { font-size: 13px; color: var(--text-faint); padding: 32px 0; }
+.picker-status code { color: var(--accent); }
 </style>

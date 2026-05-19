@@ -97,14 +97,14 @@ async function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #06060c;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--accent-contrast);
+  font-family: var(--font-sans);
 }
 .login-card {
   width: 360px;
   padding: 48px 36px;
-  background: #0e0e1a;
-  border: 1px solid #1a1a24;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
   border-radius: 12px;
   text-align: center;
 }
@@ -112,18 +112,18 @@ async function handleLogin() {
   font-size: 11px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: #4ecdc4;
+  color: var(--accent);
   margin-bottom: 12px;
 }
 .login-title {
   font-size: 22px;
   font-weight: 700;
-  color: #e0e0e0;
+  color: var(--text);
   margin-bottom: 6px;
 }
 .login-subtitle {
   font-size: 13px;
-  color: #555;
+  color: var(--text-faint);
   margin-bottom: 28px;
 }
 .login-form {
@@ -133,24 +133,24 @@ async function handleLogin() {
 }
 .login-input {
   padding: 10px 14px;
-  background: #08080e;
-  border: 1px solid #1a1a24;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  color: #e0e0e0;
+  color: var(--text);
   font-size: 14px;
   outline: none;
   transition: border-color 0.15s;
 }
 .login-input:focus {
-  border-color: #4ecdc4;
+  border-color: var(--accent);
 }
 .login-input::placeholder {
-  color: #444;
+  color: var(--text-faint);
 }
 .login-btn {
   padding: 10px;
-  background: #4ecdc4;
-  color: #06060c;
+  background: var(--accent);
+  color: var(--accent-contrast);
   font-weight: 600;
   font-size: 14px;
   border: none;
@@ -167,7 +167,7 @@ async function handleLogin() {
   cursor: not-allowed;
 }
 .login-error {
-  color: #ff6b6b;
+  color: var(--warn);
   font-size: 13px;
   padding: 6px 0;
 }

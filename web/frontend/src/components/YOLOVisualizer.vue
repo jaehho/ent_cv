@@ -20,17 +20,16 @@
     <!-- Header -->
     <div class="header">
       <div style="display:flex;align-items:center;gap:16px">
-        <button class="hdr-btn" @click="goBack">← Cases</button>
+        <button class="hdr-btn" @click="goBack"><ArrowLeft :size="14" :stroke-width="2" /><span>Cases</span></button>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
-        <span v-if="username" style="font-size:12px;color:#666">{{ username }}</span>
+        <span v-if="username" style="font-size:12px;color:var(--text-faint)">{{ username }}</span>
         <button class="hdr-btn" @click="emit('logout')" style="font-size:11px">Sign Out</button>
         <a
           :href="`/api/cases/${props.id}/csv/${filterMode === 'filtered' ? '?mode=filtered' : ''}`"
           class="hdr-btn"
-          style="text-decoration:none"
           download
-        >↓ CSV</a>
+        ><Download :size="14" :stroke-width="2" /><span>CSV</span></a>
         <div class="mode-toggle">
           <button
             class="mode-btn"
@@ -56,13 +55,17 @@
         <div class="section">
           <div class="section-label">Playback</div>
           <div style="display:flex;gap:6px;margin-bottom:12px">
-            <button class="btn" @click="seekFiltered(-1)">◀◀</button>
+            <button class="btn btn-icon" @click="seekFiltered(-1)" aria-label="Previous"><SkipBack :size="16" :stroke-width="2" /></button>
             <button
-              class="btn btn-play"
+              class="btn btn-play btn-icon"
               :class="isPlaying ? 'btn-play--pause' : 'btn-play--go'"
               @click="togglePlay"
-            >{{ isPlaying ? "⏸" : "▶" }}</button>
-            <button class="btn" @click="seekFiltered(1)">▶▶</button>
+              :aria-label="isPlaying ? 'Pause' : 'Play'"
+            >
+              <Pause v-if="isPlaying" :size="18" :stroke-width="2" />
+              <Play v-else :size="18" :stroke-width="2" />
+            </button>
+            <button class="btn btn-icon" @click="seekFiltered(1)" aria-label="Next"><SkipForward :size="16" :stroke-width="2" /></button>
           </div>
           <div style="display:flex;gap:4px">
             <button
@@ -76,10 +79,10 @@
 
           <!-- Jump filter -->
           <div style="margin-top:12px">
-            <div style="font-size:11px;color:#555;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">
+            <div style="font-size:11px;color:var(--text-faint);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">
               Jump
-              <span v-if="jumpFilter !== 'none' && jumpFrames" style="color:#4ecdc4;font-size:10px;letter-spacing:0;text-transform:none;float:right">{{ jumpFrames.length }} frames</span>
-              <span v-else-if="jumpFilter === 'changed' && !changedFrames" style="color:#553;font-size:10px;letter-spacing:0;text-transform:none;float:right">run filter first</span>
+              <span v-if="jumpFilter !== 'none' && jumpFrames" style="color:var(--accent);font-size:10px;letter-spacing:0;text-transform:none;float:right">{{ jumpFrames.length }} frames</span>
+              <span v-else-if="jumpFilter === 'changed' && !changedFrames" style="color:var(--text-faint);font-size:10px;letter-spacing:0;text-transform:none;float:right">run filter first</span>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:3px">
               <button
@@ -87,7 +90,7 @@
                 :key="jf.value"
                 class="mode-btn"
                 :class="{ 'mode-btn--active': jumpFilter === jf.value }"
-                style="font-size:10px;padding:5px 6px;border:1px solid #2a2a35;border-radius:4px"
+                style="font-size:10px;padding:5px 6px;border:1px solid var(--border-strong);border-radius:4px"
                 @click="jumpFilter = jf.value"
               >{{ jf.label }}</button>
             </div>
@@ -103,13 +106,13 @@
                   fontSize: '10px',
                   border: jumpFilterClassIds.has(item.idx)
                     ? `1px solid ${CLASS_COLORS[item.idx % CLASS_COLORS.length]}`
-                    : '1px solid #222',
+                    : '1px solid var(--bg-hover)',
                   background: jumpFilterClassIds.has(item.idx)
                     ? CLASS_COLORS[item.idx % CLASS_COLORS.length] + '33'
                     : 'transparent',
                   color: jumpFilterClassIds.has(item.idx)
                     ? CLASS_COLORS[item.idx % CLASS_COLORS.length]
-                    : '#555',
+                    : 'var(--text-faint)',
                   cursor: 'pointer',
                 }"
               >{{ item.cls }}</button>
@@ -154,8 +157,8 @@
             <button class="mode-btn" :class="{ 'mode-btn--active': filterMode === 'filtered' }" style="flex:1" @click="filterMode = 'filtered'">Filtered</button>
           </div>
 
-          <div v-if="filterMode === 'filtered' && filterInfo" style="font-size:11px;color:#555;padding:7px 8px;background:#0c0c16;border-radius:6px;border:1px solid #1a1a24">
-            <span style="color:#666">{{ filterInfo.method.replace(/_/g, ' ') }}</span>
+          <div v-if="filterMode === 'filtered' && filterInfo" style="font-size:11px;color:var(--text-faint);padding:7px 8px;background:var(--bg-2);border-radius:6px;border:1px solid var(--border)">
+            <span style="color:var(--text-faint)">{{ filterInfo.method.replace(/_/g, ' ') }}</span>
             <template v-if="filterInfo.min_duration_sec != null">
               &nbsp;· min {{ filterInfo.min_duration_sec }}s / gap {{ filterInfo.gap_fill_sec }}s
             </template>
@@ -184,7 +187,7 @@
               :src="currentPartPredictionFrameUrl"
               class="video-el"
             />
-            <div v-else style="text-align:center;padding:20px;color:#444">No prediction frame</div>
+            <div v-else style="text-align:center;padding:20px;color:var(--text-faint)">No prediction frame</div>
           </div>
           <!-- Raw mode: video element + canvas overlay -->
           <div v-else-if="videoSrc" class="video-wrapper">
@@ -203,7 +206,7 @@
             />
           </div>
           <div v-else style="text-align:center;padding:20px">
-            <div style="font-size:14px;color:#333;margin-bottom:4px">
+            <div style="font-size:14px;color:var(--border-strong);margin-bottom:4px">
               No video loaded —
               using frame simulation
             </div>
@@ -213,8 +216,8 @@
           <div v-if="currentPartName" class="part-badge">{{ currentPartName }}</div>
 
           <div class="det-count-overlay">
-            <span style="font-size:24px;font-weight:700;color:#4ecdc4">{{ currentDetections.length }}</span>
-            <span style="font-size:13px;color:#666;margin-left:6px">detections</span>
+            <span style="font-size:24px;font-weight:700;color:var(--accent)">{{ currentDetections.length }}</span>
+            <span style="font-size:13px;color:var(--text-faint);margin-left:6px">detections</span>
           </div>
 
           <div v-if="currentDetections.length > 0" class="det-bar">
@@ -235,15 +238,15 @@
         <div class="resize-handle resize-handle--row" @mousedown="startResize('raster', $event)"></div>
 
         <!-- Class labels + Raster -->
-        <div style="display:flex;border-top:1px solid #1a1a24;flex-shrink:0">
-          <div style="width:120px;flex-shrink:0;background:#08080e;border-right:1px solid #1a1a24">
+        <div style="display:flex;border-top:1px solid var(--border);flex-shrink:0">
+          <div style="width:120px;flex-shrink:0;background:var(--bg-1);border-right:1px solid var(--border)">
             <div
               v-for="(item, displayIdx) in displayedClasses"
               :key="item.idx"
               class="raster-label"
               :style="{
                 height: rasterLabelHeight,
-                color: enabledClasses.has(item.idx) ? '#999' : '#333',
+                color: enabledClasses.has(item.idx) ? 'var(--text-dim)' : 'var(--border-strong)',
                 cursor: 'grab',
               }"
               draggable="true"
@@ -256,7 +259,7 @@
                 class="raster-label-bar"
                 :style="{
                   height: rasterLabelBarHeight,
-                  background: enabledClasses.has(item.idx) ? CLASS_COLORS[item.idx % CLASS_COLORS.length] : '#222'
+                  background: enabledClasses.has(item.idx) ? CLASS_COLORS[item.idx % CLASS_COLORS.length] : 'var(--bg-hover)'
                 }"
               />
               <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ item.cls }}</span>
@@ -297,7 +300,7 @@
         </div>
 
         <!-- Minimap -->
-        <div style="padding:6px 0 6px 120px;border-top:1px solid #1a1a24;background:#08080e;flex-shrink:0">
+        <div style="padding:6px 0 6px 120px;border-top:1px solid var(--border);background:var(--bg-1);flex-shrink:0">
           <canvas
             ref="minimapRef"
             style="width:100%;height:24px;display:block;cursor:pointer;border-radius:3px"
@@ -346,7 +349,7 @@
             class="class-row"
             :class="{ 'class-row--dragging': draggingClassIdx === displayIdx }"
             :style="{
-              background: enabledClasses.has(item.idx) ? '#0e0e1a' : 'transparent',
+              background: enabledClasses.has(item.idx) ? 'var(--accent-soft)' : 'transparent',
               opacity: classStats[item.idx]?.count === 0 ? 0.25 : (enabledClasses.has(item.idx) ? 1 : 0.35),
               cursor: classSortMode === 'custom' ? 'move' : 'pointer',
               pointerEvents: classStats[item.idx]?.count === 0 ? 'none' : undefined,
@@ -359,21 +362,21 @@
             @drop="handleDrop($event, displayIdx)"
             @dragend="handleDragEnd"
           >
-            <div v-if="classSortMode === 'custom'" style="margin-right:6px;color:#666;cursor:grab;user-select:none" @mousedown.stop>⋮⋮</div>
-            <div class="class-dot" :style="{ background: classStats[item.idx]?.count === 0 ? '#333' : CLASS_COLORS[item.idx % CLASS_COLORS.length] }" />
+            <div v-if="classSortMode === 'custom'" style="margin-right:6px;color:var(--text-faint);cursor:grab;user-select:none" @mousedown.stop>⋮⋮</div>
+            <div class="class-dot" :style="{ background: classStats[item.idx]?.count === 0 ? 'var(--border-strong)' : CLASS_COLORS[item.idx % CLASS_COLORS.length] }" />
             <div style="flex:1;min-width:0">
               <div class="class-name">{{ item.cls }}</div>
               <div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap">
-                <div v-if="classStats[item.idx]?.count === 0" class="class-stat" style="color:#444;font-style:italic">
+                <div v-if="classStats[item.idx]?.count === 0" class="class-stat" style="color:var(--text-faint);font-style:italic">
                   no detections
                 </div>
                 <div v-else-if="classStats[item.idx]" class="class-stat">
                   {{ classStats[item.idx].pct.toFixed(0) }}% frames
                 </div>
-                <div v-if="filteredSummary?.onset_count?.[item.cls] != null" style="font-size:11px;color:#888">
+                <div v-if="filteredSummary?.onset_count?.[item.cls] != null" style="font-size:11px;color:var(--text-dim)">
                   {{ filteredSummary.onset_count[item.cls] }}× onset
                 </div>
-                <div v-if="filterMode === 'filtered' && filteredSummary?.class_time_sec?.[item.cls] != null" style="font-size:11px;color:#4ecdc4">
+                <div v-if="filterMode === 'filtered' && filteredSummary?.class_time_sec?.[item.cls] != null" style="font-size:11px;color:var(--accent)">
                   {{ filteredSummary.class_time_sec[item.cls].toFixed(1) }}s
                 </div>
               </div>
@@ -397,7 +400,7 @@
 
         <!-- Transitions (filtered mode, when summary available) -->
         <div v-if="transitionMatrix"
-          style="flex-shrink:0;border-top:1px solid #1a1a24;padding:10px 14px;max-height:40%;overflow-y:auto">
+          style="flex-shrink:0;border-top:1px solid var(--border);padding:10px 14px;max-height:40%;overflow-y:auto">
           <div class="section-label" style="margin-bottom:8px">Transitions</div>
           <div style="display:flex">
             <!-- Row labels -->
@@ -405,7 +408,7 @@
               <!-- spacer aligns row labels with grid rows (below column label area) -->
               <div style="height:80px;flex-shrink:0"></div>
               <div :style="{ minHeight: transitionMatrix.cellSize + 'px', width: transitionMatrix.rowLabelW + 'px' }" v-for="cls in transitionMatrix.classes" :key="'rl-'+cls"
-                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:#666;white-space:normal;overflow-wrap:normal;word-break:keep-all;text-align:right;padding:2px 0"
+                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:var(--text-faint);white-space:normal;overflow-wrap:normal;word-break:keep-all;text-align:right;padding:2px 0"
                 :title="cls">{{ cls }}</div>
             </div>
             <div style="flex:1;min-width:0">
@@ -414,7 +417,7 @@
                 <div v-for="cls in transitionMatrix.classes" :key="'cl-'+cls"
                   :style="{ width: transitionMatrix.cellSize + 'px', flexShrink: 0 }"
                   style="display:flex;align-items:flex-end;justify-content:center;overflow:visible">
-                  <span :style="{ writingMode:'vertical-rl', transform:'rotate(180deg)', display:'block', fontSize:'9px', color:'#666', whiteSpace:'normal', overflowWrap:'normal', wordBreak:'keep-all', maxHeight:'78px', overflow:'hidden' }"
+                  <span :style="{ writingMode:'vertical-rl', transform:'rotate(180deg)', display:'block', fontSize:'9px', color:'var(--text-faint)', whiteSpace:'normal', overflowWrap:'normal', wordBreak:'keep-all', maxHeight:'78px', overflow:'hidden' }"
                     :title="cls">{{ cls }}</span>
                 </div>
               </div>
@@ -426,8 +429,8 @@
                     height: transitionMatrix.cellSize + 'px',
                     background: cell.count > 0
                       ? `rgba(78, 205, 196, ${0.15 + 0.85 * cell.intensity})`
-                      : '#0c0c16',
-                    border: '1px solid #1a1a24',
+                      : 'var(--bg-2)',
+                    border: '1px solid var(--border)',
                     borderRadius: '2px',
                     cursor: cell.count > 0 ? 'default' : undefined,
                     position: 'relative',
@@ -454,6 +457,7 @@ import {
   ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick, shallowRef,
 } from "vue";
 import { useRouter } from "vue-router";
+import { ArrowLeft, Download, Play, Pause, SkipBack, SkipForward } from "lucide-vue-next";
 import { CLASS_COLORS, formatTime } from "../utils/index.js";
 
 const props = defineProps({
@@ -466,6 +470,30 @@ const router = useRouter();
 // ── Constants ──────────────────────────────────────────────────────────────
 const RATES = [0.25, 0.5, 1, 2, 4];
 const SPARKLINE_BINS = 20;
+
+// ── Canvas palette ─────────────────────────────────────────────────────────
+// Canvas drawing can't reference CSS custom properties directly, so we mirror
+// a small theme-aware palette here and refresh it when prefers-color-scheme changes.
+const DARK_CANVAS_PALETTE = {
+  bg: "#0a0a0f",
+  marker: "#ffffff",
+  label: "#ffffff",
+  grid: "rgba(255,255,255,0.04)",
+  viewportFill: "rgba(255,255,255,0.05)",
+};
+const LIGHT_CANVAS_PALETTE = {
+  bg: "#ffffff",
+  marker: "#1a1d24",
+  label: "#ffffff", // bbox labels are drawn on coloured class backgrounds — keep white
+  grid: "rgba(0,0,0,0.06)",
+  viewportFill: "rgba(0,0,0,0.05)",
+};
+const _canvas = { ...DARK_CANVAS_PALETTE };
+function refreshCanvasPalette() {
+  const isLight = typeof window !== "undefined"
+    && window.matchMedia?.("(prefers-color-scheme: light)").matches;
+  Object.assign(_canvas, isLight ? LIGHT_CANVAS_PALETTE : DARK_CANVAS_PALETTE);
+}
 const JUMP_FILTERS = [
   { value: 'none',    label: 'Off' },
   { value: 'any',     label: 'Any' },
@@ -1352,7 +1380,7 @@ function drawOverlay() {
     ctx.fillStyle = color;
     ctx.fillRect(rx - 1, ly - lh + 4, textW + 10, lh);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = _canvas.label;
     ctx.fillText(label, rx + 4, ly - 2);
   }
 }
@@ -1379,11 +1407,11 @@ function drawRaster() {
   const visibleFrames = endFrame - startFrame;
   const pxPerFrame = W / visibleFrames;
 
-  ctx.fillStyle = "#0a0a0f";
+  ctx.fillStyle = _canvas.bg;
   ctx.fillRect(0, 0, W, H);
 
   // Grid lines
-  ctx.strokeStyle = "rgba(255,255,255,0.04)";
+  ctx.strokeStyle = _canvas.grid;
   ctx.lineWidth = 0.5;
   ctx.beginPath();
   for (let i = 0; i < numClasses; i++) {
@@ -1419,9 +1447,9 @@ function drawRaster() {
   // Playhead
   const playheadX = (currentFrame.value - startFrame) * pxPerFrame;
   if (playheadX >= 0 && playheadX <= W) {
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = _canvas.marker;
     ctx.lineWidth = 2;
-    ctx.shadowColor = "#ffffff";
+    ctx.shadowColor = _canvas.marker;
     ctx.shadowBlur = 6;
     ctx.beginPath(); ctx.moveTo(playheadX, 0); ctx.lineTo(playheadX, H); ctx.stroke();
     ctx.shadowBlur = 0;
@@ -1457,7 +1485,7 @@ function drawMinimap() {
   const rowH = H / numClasses;
   const totalFrames = d.total_frames;
 
-  ctx.fillStyle = "#0a0a0f";
+  ctx.fillStyle = _canvas.bg;
   ctx.fillRect(0, 0, W, H);
 
   const pxPerFrame = W / totalFrames;
@@ -1481,9 +1509,9 @@ function drawMinimap() {
   const visibleFraction = 1 / zoomLevel.value;
   const vpX = panOffset.value * W;
   const vpW = visibleFraction * W;
-  ctx.fillStyle = "rgba(255,255,255,0.05)";
+  ctx.fillStyle = _canvas.viewportFill;
   ctx.fillRect(vpX, 0, vpW, H);
-  ctx.strokeStyle = "#fff";
+  ctx.strokeStyle = _canvas.marker;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(vpX, 0, vpW, H);
 
@@ -1499,7 +1527,7 @@ function drawMinimap() {
 
   // Playhead
   const phX = (currentFrame.value / totalFrames) * W;
-  ctx.strokeStyle = "#ff6b6b";
+  ctx.strokeStyle = "var(--warn)";
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(phX, 0); ctx.lineTo(phX, H); ctx.stroke();
 }
@@ -1784,11 +1812,22 @@ function onKeyDown(e) {
   }
 }
 
+// Theme-aware canvas palette: refresh now and on color-scheme change.
+let _colorSchemeMql = null;
+function onColorSchemeChange() {
+  refreshCanvasPalette();
+  scheduleDraws(7); // overlay | raster | minimap
+}
+
 onMounted(() => {
   window.addEventListener("mousemove", onGlobalMouseMove);
   window.addEventListener("mouseup", onGlobalMouseUp);
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("click", handleClickOutside);
+
+  refreshCanvasPalette();
+  _colorSchemeMql = window.matchMedia?.("(prefers-color-scheme: light)");
+  _colorSchemeMql?.addEventListener?.("change", onColorSchemeChange);
 
   // Load custom order from localStorage
   const saved = localStorage.getItem('yolo-visualizer-custom-order');
@@ -1809,6 +1848,8 @@ onUnmounted(() => {
   window.removeEventListener("mouseup", onGlobalMouseUp);
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("click", handleClickOutside);
+  _colorSchemeMql?.removeEventListener?.("change", onColorSchemeChange);
+  _colorSchemeMql = null;
   if (_rafId) cancelAnimationFrame(_rafId);
   // Cancel pending video frame callback if active
   if (videoRef.value && typeof videoRef.value.cancelVideoFrameCallback === 'function') {
@@ -1826,56 +1867,62 @@ onUnmounted(() => {
 
 /* ── App layout ─────────────────────────────────────────────────────────── */
 .app-root {
-  height: 100vh; overflow: hidden; background: #06060a;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  color: #e0e0e6; display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden; background: var(--bg-0);
+  font-family: var(--font-mono);
+  color: var(--text); display: flex; flex-direction: column;
 }
 .header {
   padding: 10px 20px; display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid #1a1a24; background: #08080e; flex-shrink: 0;
+  border-bottom: 1px solid var(--border); background: var(--bg-1); flex-shrink: 0;
 }
 .hdr-btn {
-  padding: 6px 14px; border: 1px solid #2a2a35; border-radius: 5px;
-  color: #999; font-size: 13px; cursor: pointer; background: transparent;
-  font-family: 'JetBrains Mono', monospace;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border: 1px solid var(--border-strong); border-radius: 5px;
+  color: var(--text-dim); font-size: 13px; cursor: pointer; background: transparent;
+  font-family: var(--font-mono); text-decoration: none;
+  transition: color .15s, border-color .15s;
+}
+.hdr-btn:hover { color: var(--text); border-color: var(--accent-border); }
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .mode-toggle {
-  display: flex; border: 1px solid #2a2a35; border-radius: 5px; overflow: hidden;
-  font-family: 'JetBrains Mono', monospace;
+  display: flex; border: 1px solid var(--border-strong); border-radius: 5px; overflow: hidden;
+  font-family: var(--font-mono);
 }
 .mode-btn {
   padding: 6px 14px; border: none; background: transparent;
-  color: #555; font-size: 12px; cursor: pointer;
+  color: var(--text-faint); font-size: 12px; cursor: pointer;
   font-family: inherit; transition: all .15s;
 }
-.mode-btn--active { background: #1a1a2e; color: #4ecdc4; }
+.mode-btn--active { background: var(--accent-soft); color: var(--accent); }
 
 .body-row { display: flex; flex: 1; overflow: hidden; }
 
 /* ── Left panel ─────────────────────────────────────────────────────────── */
 .left-panel {
-  border-right: 1px solid #1a1a24; overflow-y: auto;
-  background: #08080e; padding: 16px 14px; flex-shrink: 0;
+  border-right: 1px solid var(--border); overflow-y: auto;
+  background: var(--bg-1); padding: 16px 14px; flex-shrink: 0;
 }
 .section { margin-bottom: 20px; }
 .section-label {
-  font-size: 12px; color: #555; letter-spacing: 2px;
+  font-size: 12px; color: var(--text-faint); letter-spacing: 2px;
   margin-bottom: 10px; text-transform: uppercase; display: block;
 }
 .btn {
-  padding: 8px 14px; background: #0c0c16; border: 1px solid #2a2a35;
-  border-radius: 5px; color: #999; font-size: 14px; cursor: pointer;
-  font-family: 'JetBrains Mono', monospace;
+  padding: 8px 14px; background: var(--bg-2); border: 1px solid var(--border-strong);
+  border-radius: 5px; color: var(--text-dim); font-size: 14px; cursor: pointer;
+  font-family: var(--font-mono);
 }
 .btn-play { flex: 1; }
-.btn-play--pause { background: #ff6b6b22; border-color: #ff6b6b44; }
-.btn-play--go { background: #4ecdc422; border-color: #4ecdc444; }
+.btn-play--pause { background: var(--warn-soft); border-color: var(--warn-border); }
+.btn-play--go { background: var(--accent-bg); border-color: var(--accent-border); }
 .btn-rate { flex: 1; min-width: 0; font-size: 11px; background: transparent; white-space: nowrap; text-align: center; padding: 8px 4px; }
-.btn-rate--active { background: #4ecdc422; border-color: #4ecdc444; }
+.btn-rate--active { background: var(--accent-bg); border-color: var(--accent-border); }
 
 .time-display {
-  padding: 12px; background: #0c0c16; border-radius: 8px; margin-bottom: 20px;
-  border: 1px solid #1a1a24; text-align: center;
+  padding: 12px; background: var(--bg-2); border-radius: 8px; margin-bottom: 20px;
+  border: 1px solid var(--border); text-align: center;
 }
 .time-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .time-input {
@@ -1884,19 +1931,19 @@ onUnmounted(() => {
   color: inherit; font-family: inherit; text-align: center; width: 100%;
   outline: none; padding: 0;
 }
-.time-input:hover { border-bottom-color: #333; }
-.time-input:focus { border-bottom-color: #4ecdc4; }
+.time-input:hover { border-bottom-color: var(--border-strong); }
+.time-input:focus { border-bottom-color: var(--accent); }
 .time-input-error {
-  font-size: 11px; color: #ff6b6b; margin-top: 4px;
+  font-size: 11px; color: var(--warn); margin-top: 4px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.time-sub { font-size: 13px; color: #555; margin-top: 4px; }
+.time-sub { font-size: 13px; color: var(--text-faint); margin-top: 4px; }
 .frame-input {
   width: 60px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid #333;
-  color: #4ecdc4;
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--accent);
   font-family: monospace;
   font-size: 14px;
   text-align: center;
@@ -1911,7 +1958,7 @@ onUnmounted(() => {
   margin: 0;
 }
 .frame-input:focus {
-  border-bottom-color: #4ecdc4;
+  border-bottom-color: var(--accent);
 }
 .custom-dropdown {
   position: relative;
@@ -1928,21 +1975,21 @@ onUnmounted(() => {
 
 .dropdown-value {
   font-size: 12px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: #555;
+  color: var(--text-faint);
   transition: color 0.15s;
 }
 
 .dropdown-trigger:hover .dropdown-value {
-  color: #777;
+  color: var(--text-dim);
 }
 
 .dropdown-chevron {
   margin-left: 4px;
   font-size: 10px;
-  color: #555;
+  color: var(--text-faint);
 }
 
 .dropdown-menu {
@@ -1950,8 +1997,8 @@ onUnmounted(() => {
   top: 100%;
   right: 0;
   margin-top: 4px;
-  background: #0c0c16;
-  border: 1px solid #2a2a35;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   padding: 4px 0;
   z-index: 1000;
@@ -1962,16 +2009,16 @@ onUnmounted(() => {
 .dropdown-item {
   padding: 6px 12px;
   font-size: 12px;
-  font-family: 'JetBrains Mono', monospace;
-  color: #999;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
   cursor: pointer;
   transition: background 0.15s;
   white-space: nowrap;
 }
 
 .dropdown-item:hover {
-  background: #1a1a24;
-  color: #ccc;
+  background: var(--border);
+  color: var(--text);
 }
 
 .class-row {
@@ -1983,7 +2030,7 @@ onUnmounted(() => {
 }
 .class-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 .class-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.class-stat { font-size: 11px; color: #555; margin-top: 1px; }
+.class-stat { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
 
 /* ── Main content ───────────────────────────────────────────────────────── */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -2010,18 +2057,17 @@ onUnmounted(() => {
 }
 .sim-time {
   font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  color: var(--text);
 }
 .part-badge {
   position: absolute; top: 10px; left: 10px; padding: 4px 12px;
   background: rgba(0,0,0,0.7); border-radius: 5px; backdrop-filter: blur(8px);
-  border: 1px solid #2a2a35; font-size: 12px; color: #45b7d1;
+  border: 1px solid var(--border-strong); font-size: 12px; color: var(--accent);
 }
 .det-count-overlay {
   position: absolute; top: 10px; right: 10px; padding: 6px 12px;
   background: rgba(0,0,0,0.7); border-radius: 6px; backdrop-filter: blur(8px);
-  border: 1px solid #2a2a35;
+  border: 1px solid var(--border-strong);
 }
 .det-bar {
   position: absolute; bottom: 0; left: 0; right: 0;
@@ -2036,53 +2082,53 @@ onUnmounted(() => {
 }
 .raster-label {
   display: flex; align-items: center; padding: 0 8px;
-  font-size: 11px; border-bottom: 1px solid #0e0e18;
+  font-size: 11px; border-bottom: 1px solid var(--bg-hover);
 }
 .raster-label-bar { width: 4px; border-radius: 2px; margin-right: 6px; flex-shrink: 0; }
 .hover-tooltip {
   position: absolute; top: 4px; right: 4px; padding: 5px 12px;
   background: rgba(0,0,0,0.85); border-radius: 4px; font-size: 13px;
-  color: #aaa; pointer-events: none; border: 1px solid #2a2a35;
+  color: var(--text-dim); pointer-events: none; border: 1px solid var(--border-strong);
 }
 .kbd-bar {
-  padding: 7px 16px; border-top: 1px solid #1a1a24; background: #08080e;
-  font-size: 12px; color: #333; display: flex; gap: 16px; flex-shrink: 0;
+  padding: 7px 16px; border-top: 1px solid var(--border); background: var(--bg-1);
+  font-size: 12px; color: var(--border-strong); display: flex; gap: 16px; flex-shrink: 0;
 }
 .kbd {
-  padding: 2px 6px; background: #12121e; border-radius: 3px;
-  border: 1px solid #2a2a35; font-size: 11px; font-family: inherit;
+  padding: 2px 6px; background: var(--bg-hover); border-radius: 3px;
+  border: 1px solid var(--border-strong); font-size: 11px; font-family: inherit;
 }
 
 /* ── Right panel ────────────────────────────────────────────────────────── */
 .right-panel {
-  border-left: 1px solid #1a1a24; overflow: hidden;
-  background: #08080e; flex-shrink: 0; display: flex; flex-direction: column;
+  border-left: 1px solid var(--border); overflow: hidden;
+  background: var(--bg-1); flex-shrink: 0; display: flex; flex-direction: column;
 }
 .resize-handle { flex-shrink: 0; z-index: 10; }
 .resize-handle--col {
   width: 5px; cursor: col-resize; background: transparent;
   transition: background 0.15s;
 }
-.resize-handle--col:hover, .resize-handle--col:active { background: rgba(78,205,196,0.18); }
+.resize-handle--col:hover, .resize-handle--col:active { background: var(--accent-soft); }
 .resize-handle--row {
   height: 5px; cursor: row-resize; background: transparent;
   transition: background 0.15s;
 }
-.resize-handle--row:hover, .resize-handle--row:active { background: rgba(78,205,196,0.18); }
+.resize-handle--row:hover, .resize-handle--row:active { background: var(--accent-soft); }
 .loading-screen {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: #0f0f17;
+  background: var(--bg-0);
   gap: 16px;
 }
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #2a2a35;
-  border-top-color: #4ecdc4;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -2090,7 +2136,7 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 .loading-label {
-  color: #555;
+  color: var(--text-faint);
   font-size: 13px;
   letter-spacing: 1px;
 }

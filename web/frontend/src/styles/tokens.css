@@ -1,0 +1,79 @@
+/*
+ * Design tokens — single source of truth for colors, spacing, and type.
+ * Dark is the default; `prefers-color-scheme: light` flips palette tokens.
+ * Non-palette tokens (spacing, radius, type, fonts) don't change between themes.
+ */
+
+:root {
+  /* ── Palette (dark) ──────────────────────────────────────────────────── */
+  --bg-0: #06060a;          /* app root */
+  --bg-1: #08080e;          /* panels (header, side panels) */
+  --bg-2: #0c0c16;          /* cards, inputs, sections */
+  --bg-hover: #12121e;      /* card/button hover */
+
+  --border: #1a1a24;        /* subtle separators */
+  --border-strong: #2a2a35; /* buttons, focusable controls */
+
+  --text: #e0e0e6;          /* primary */
+  --text-dim: #999;         /* secondary */
+  --text-faint: #555;       /* tertiary, labels */
+
+  --accent: #4ecdc4;        /* teal */
+  --accent-soft: rgba(78, 205, 196, 0.13);
+  --accent-bg: rgba(78, 205, 196, 0.20);
+  --accent-border: rgba(78, 205, 196, 0.27);
+  --accent-contrast: #06060c; /* text on solid accent */
+
+  --warn: #ff6b6b;
+  --warn-soft: rgba(255, 107, 107, 0.13);
+  --warn-border: rgba(255, 107, 107, 0.27);
+
+  /* ── Typography ─────────────────────────────────────────────────────── */
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-md: 13px;
+  --font-lg: 16px;
+  --font-xl: 28px;
+
+  /* ── Spacing ────────────────────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* ── Radius ─────────────────────────────────────────────────────────── */
+  --radius-1: 4px;
+  --radius-2: 6px;
+  --radius-3: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-0: #f6f7f9;
+    --bg-1: #ffffff;
+    --bg-2: #f0f1f4;
+    --bg-hover: #e8eaee;
+
+    --border: #e1e3e8;
+    --border-strong: #c4c8d0;
+
+    --text: #1a1d24;
+    --text-dim: #5a6068;
+    --text-faint: #8a8f97;
+
+    --accent: #0a7a73;
+    --accent-soft: rgba(10, 122, 115, 0.08);
+    --accent-bg: rgba(10, 122, 115, 0.14);
+    --accent-border: rgba(10, 122, 115, 0.30);
+    --accent-contrast: #ffffff;
+
+    --warn: #c4302b;
+    --warn-soft: rgba(196, 48, 43, 0.08);
+    --warn-border: rgba(196, 48, 43, 0.28);
+  }
+}
