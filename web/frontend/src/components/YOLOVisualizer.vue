@@ -475,11 +475,11 @@ const SPARKLINE_BINS = 20;
 // Canvas drawing can't reference CSS custom properties directly, so we mirror
 // a small theme-aware palette here and refresh it when prefers-color-scheme changes.
 const DARK_CANVAS_PALETTE = {
-  bg: "#0a0a0f",
+  bg: "#0a0e14",
   marker: "#ffffff",
   label: "#ffffff",
-  grid: "rgba(255,255,255,0.04)",
-  viewportFill: "rgba(255,255,255,0.05)",
+  grid: "rgba(255,255,255,0.05)",
+  viewportFill: "rgba(255,255,255,0.06)",
 };
 const LIGHT_CANVAS_PALETTE = {
   bg: "#ffffff",

@@ -6,27 +6,28 @@
 
 :root {
   /* ── Palette (dark) ──────────────────────────────────────────────────── */
-  --bg-0: #06060a;          /* app root */
-  --bg-1: #08080e;          /* panels (header, side panels) */
-  --bg-2: #0c0c16;          /* cards, inputs, sections */
-  --bg-hover: #12121e;      /* card/button hover */
+  /* Cool slate, lifted off pure black so layers read separately under daylight. */
+  --bg-0: #10141a;          /* app root */
+  --bg-1: #161b23;          /* panels (header, side panels) */
+  --bg-2: #1d242e;          /* cards, inputs, sections */
+  --bg-hover: #262e3a;      /* card/button hover */
 
-  --border: #1a1a24;        /* subtle separators */
-  --border-strong: #2a2a35; /* buttons, focusable controls */
+  --border: #2a3340;        /* subtle separators */
+  --border-strong: #3d4858; /* buttons, focusable controls */
 
-  --text: #e0e0e6;          /* primary */
-  --text-dim: #999;         /* secondary */
-  --text-faint: #555;       /* tertiary, labels */
+  --text: #e8edf3;          /* primary */
+  --text-dim: #a0a9b8;      /* secondary */
+  --text-faint: #6c7686;    /* tertiary, labels */
 
   --accent: #4ecdc4;        /* teal */
   --accent-soft: rgba(78, 205, 196, 0.13);
   --accent-bg: rgba(78, 205, 196, 0.20);
-  --accent-border: rgba(78, 205, 196, 0.27);
-  --accent-contrast: #06060c; /* text on solid accent */
+  --accent-border: rgba(78, 205, 196, 0.30);
+  --accent-contrast: #10141a; /* text on solid accent */
 
   --warn: #ff6b6b;
   --warn-soft: rgba(255, 107, 107, 0.13);
-  --warn-border: rgba(255, 107, 107, 0.27);
+  --warn-border: rgba(255, 107, 107, 0.30);
 
   /* ── Typography ─────────────────────────────────────────────────────── */
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
