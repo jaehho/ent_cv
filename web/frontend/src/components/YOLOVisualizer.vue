@@ -145,18 +145,16 @@
           </div>
         </div>
 
-        <!-- Post-process -->
+        <!-- View: raw or filtered detections (filter is produced offline by CLI) -->
         <div class="section">
-          <div class="section-label">Post-process</div>
+          <div class="section-label">View</div>
 
-          <!-- Raw / Filtered toggle -->
           <div class="mode-toggle" style="margin-bottom:12px">
             <button class="mode-btn" :class="{ 'mode-btn--active': filterMode === 'raw' }" style="flex:1" @click="filterMode = 'raw'">Raw</button>
             <button class="mode-btn" :class="{ 'mode-btn--active': filterMode === 'filtered' }" style="flex:1" @click="filterMode = 'filtered'">Filtered</button>
           </div>
 
-          <!-- Active filter info chip -->
-          <div v-if="filterMode === 'filtered' && filterInfo" style="font-size:11px;color:#555;margin-bottom:10px;padding:7px 8px;background:#0c0c16;border-radius:6px;border:1px solid #1a1a24">
+          <div v-if="filterMode === 'filtered' && filterInfo" style="font-size:11px;color:#555;padding:7px 8px;background:#0c0c16;border-radius:6px;border:1px solid #1a1a24">
             <span style="color:#666">{{ filterInfo.method.replace(/_/g, ' ') }}</span>
             <template v-if="filterInfo.min_duration_sec != null">
               &nbsp;· min {{ filterInfo.min_duration_sec }}s / gap {{ filterInfo.gap_fill_sec }}s
@@ -165,82 +163,6 @@
               &nbsp;· window {{ filterInfo.window_sec }}s / thr {{ filterInfo.vote_threshold }}
             </template>
           </div>
-
-          <!-- Method selector -->
-          <div style="margin-bottom:10px">
-            <div style="font-size:11px;color:#555;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Method</div>
-            <div class="mode-toggle">
-              <button v-for="m in PP_METHODS" :key="m" class="mode-btn" :class="{ 'mode-btn--active': ppMethod === m }" style="flex:1;font-size:10px;padding:5px 2px" @click="ppMethod = m">{{ m.replace(/_/g, ' ') }}</button>
-            </div>
-          </div>
-
-          <!-- run_length params -->
-          <template v-if="ppMethod === 'run_length'">
-            <div style="margin-bottom:8px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                <span style="font-size:11px;color:#555">Min duration</span>
-                <span style="font-size:11px;color:#4ecdc4">{{ ppMinDuration.toFixed(1) }}s</span>
-              </div>
-              <input type="range" min="0.1" max="5" step="0.1" :value="ppMinDuration" @input="e => ppMinDuration = parseFloat(e.target.value)" style="width:100%;accent-color:#4ecdc4" />
-            </div>
-            <div style="margin-bottom:12px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                <span style="font-size:11px;color:#555">Gap fill</span>
-                <span style="font-size:11px;color:#4ecdc4">{{ ppGapFill.toFixed(1) }}s</span>
-              </div>
-              <input type="range" min="0" max="5" step="0.1" :value="ppGapFill" @input="e => ppGapFill = parseFloat(e.target.value)" style="width:100%;accent-color:#4ecdc4" />
-            </div>
-          </template>
-
-          <!-- majority_vote / gaussian params -->
-          <template v-else>
-            <div style="margin-bottom:8px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                <span style="font-size:11px;color:#555">Window</span>
-                <span style="font-size:11px;color:#4ecdc4">{{ ppWindowSec.toFixed(1) }}s</span>
-              </div>
-              <input type="range" min="0.5" max="10" step="0.5" :value="ppWindowSec" @input="e => ppWindowSec = parseFloat(e.target.value)" style="width:100%;accent-color:#4ecdc4" />
-            </div>
-            <div style="margin-bottom:12px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                <span style="font-size:11px;color:#555">Vote threshold</span>
-                <span style="font-size:11px;color:#4ecdc4">{{ ppVoteThreshold.toFixed(2) }}</span>
-              </div>
-              <input type="range" min="0.1" max="0.9" step="0.01" :value="ppVoteThreshold" @input="e => ppVoteThreshold = parseFloat(e.target.value)" style="width:100%;accent-color:#4ecdc4" />
-            </div>
-          </template>
-
-          <!-- Min Confidence -->
-          <div style="margin-bottom:12px">
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-              <span style="font-size:11px;color:#555">Min confidence</span>
-              <span style="font-size:11px;color:#4ecdc4">{{ confidenceThreshold.toFixed(2) }}</span>
-            </div>
-            <input type="range" min="0" max="1" step="0.01" :value="confidenceThreshold"
-              @input="e => confidenceThreshold = parseFloat(e.target.value)"
-              style="width:100%;accent-color:#4ecdc4" />
-          </div>
-
-          <!-- Run Post-Process button with progress bar -->
-          <button
-            class="pp-btn"
-            :class="{
-              'pp-btn--running': ppRunning,
-              'pp-btn--error': !ppRunning && ppError,
-              'pp-btn--done': !ppRunning && !ppError && ppResult,
-            }"
-            :disabled="ppRunning || !activeCaseName"
-            @click="runPostprocess"
-          >
-            <span class="pp-btn__label">
-              <template v-if="ppRunning">Processing…</template>
-              <template v-else-if="ppError">✗ Error — Retry</template>
-              <template v-else-if="ppResult">✓ Run Again</template>
-              <template v-else>Run Post-Process</template>
-            </span>
-            <div v-if="ppRunning" class="pp-btn__bar"></div>
-          </button>
-          <div v-if="ppError && !ppRunning" style="font-size:10px;color:#ff6b6b;margin-top:4px;word-break:break-all;max-height:40px;overflow:auto" :title="ppError">{{ ppError }}</div>
         </div>
       </div>
 
@@ -544,7 +466,6 @@ const router = useRouter();
 // ── Constants ──────────────────────────────────────────────────────────────
 const RATES = [0.25, 0.5, 1, 2, 4];
 const SPARKLINE_BINS = 20;
-const PP_METHODS = ['run_length', 'majority_vote', 'gaussian'];
 const JUMP_FILTERS = [
   { value: 'none',    label: 'Off' },
   { value: 'any',     label: 'Any' },
@@ -567,7 +488,6 @@ const videoSrc          = ref(null);
 const activeCaseName    = ref(null);
 const currentFrame      = ref(0);
 const isPlaying         = ref(false);
-const confidenceThreshold = ref(0.25);
 const enabledClasses    = ref(new Set());
 const zoomLevel         = ref(1);
 const panOffset         = ref(0);
@@ -606,16 +526,10 @@ const rasterHeight      = ref(200);   // px height of raster canvas
 const jumpFilter        = ref('none'); // 'none'|'any'|'class'|'onset'|'changed'
 const jumpFilterClassIds = ref(new Set()); // class indices when jumpFilter==='class'
 
-// ── Post-process state ─────────────────────────────────────────────────────────────
+// ── Filter view state ──────────────────────────────────────────────────────
+// Postprocessing itself is run offline via the CLI; the UI only chooses
+// which output to display and surfaces what filter produced the filtered file.
 const filterMode        = ref('raw');        // 'raw' | 'filtered'
-const ppMethod          = ref('run_length');
-const ppMinDuration     = ref(1.0);
-const ppGapFill         = ref(1.0);
-const ppWindowSec       = ref(3.0);
-const ppVoteThreshold   = ref(0.5);
-const ppRunning         = ref(false);
-const ppError           = ref(null);
-const ppResult          = ref(null);
 const filterInfo        = ref(null);
 const rawFrameSet       = shallowRef(null);  // Set<number> of raw frame indices
 const filteredSummary   = ref(null);          // class_time_sec etc from filtered_summary.json
@@ -1111,8 +1025,6 @@ async function loadCase(caseName) {
     filteredSummary.value = null;
     filterInfo.value = null;
     filterMode.value = 'raw';
-    ppResult.value = null;
-    ppError.value = null;
     activeCaseName.value = caseName;
     enabledClasses.value = new Set(parsed.classes.map((_, i) => i));
     jumpFilterClassIds.value = new Set();
@@ -1150,49 +1062,6 @@ async function reloadData(caseName, mode) {
       const sumRes = await fetch(`/api/cases/${caseName}/filtered-summary/`);
       if (sumRes.ok) filteredSummary.value = await sumRes.json();
     } catch {}
-  }
-}
-
-async function runPostprocess() {
-  if (!activeCaseName.value) return;
-  ppRunning.value = true;
-  ppError.value = null;
-  try {
-    const body = {
-      caseName: activeCaseName.value,
-      method: ppMethod.value,
-      min_duration_sec: ppMinDuration.value,
-      gap_fill_sec: ppGapFill.value,
-      window_sec: ppWindowSec.value,
-      vote_threshold: ppVoteThreshold.value,
-      confidence_threshold: confidenceThreshold.value,
-    };
-    const csrfToken = document.cookie
-      .split("; ")
-      .find((r) => r.startsWith("entcv_csrftoken="))
-      ?.split("=")[1];
-    const res = await fetch(`/api/cases/${activeCaseName.value}/postprocess/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-    const result = await res.json();
-    if (!result.ok) throw new Error(result.error);
-    ppResult.value = result;
-    filteredSummary.value = result.summary ?? null;
-    // Switch to filtered view, then reload; if already filtered just reload
-    if (filterMode.value !== 'filtered') {
-      filterMode.value = 'filtered'; // watch fires reloadData
-    } else {
-      await reloadData(activeCaseName.value, 'filtered');
-    }
-  } catch (err) {
-    ppError.value = err.message;
-  } finally {
-    ppRunning.value = false;
   }
 }
 
@@ -1665,11 +1534,9 @@ watch(filterMode, async (newMode, oldMode) => {
     await reloadData(activeCaseName.value, newMode);
   } catch (err) {
     filterMode.value = oldMode;  // revert toggle
-    ppError.value = `Could not load ${newMode} detections: ${err.message}`;
+    alert(`Could not load ${newMode} detections: ${err.message}`);
   }
 });
-
-// (Post-process is now triggered manually via the Run button)
 
 // Dependency watchers for raster & minimap
 watch(
@@ -2202,30 +2069,6 @@ onUnmounted(() => {
   transition: background 0.15s;
 }
 .resize-handle--row:hover, .resize-handle--row:active { background: rgba(78,205,196,0.18); }
-/* ── Post-process button ────────────────────────────────────────────────── */
-.pp-btn {
-  position: relative; overflow: hidden; width: 100%;
-  padding: 9px 14px; border: 1px solid #2a2a35; border-radius: 6px;
-  background: #0c0c16; color: #999; font-size: 12px; cursor: pointer;
-  font-family: 'JetBrains Mono', monospace; transition: all .15s;
-}
-.pp-btn:hover:not(:disabled) { background: #12121e; color: #ccc; border-color: #4ecdc444; }
-.pp-btn:disabled { cursor: not-allowed; opacity: 0.5; }
-.pp-btn--running { border-color: #4ecdc444; color: #888; cursor: wait; }
-.pp-btn--error { border-color: #ff6b6b44; color: #ff6b6b; }
-.pp-btn--done { border-color: #4ecdc444; color: #4ecdc4; }
-.pp-btn__label { position: relative; z-index: 1; }
-.pp-btn__bar {
-  position: absolute; top: 0; left: 0; bottom: 0; width: 0;
-  background: linear-gradient(90deg, #4ecdc422, #4ecdc433);
-  animation: pp-fill 3s ease-out forwards;
-}
-@keyframes pp-fill {
-  0%   { width: 0; }
-  60%  { width: 70%; }
-  85%  { width: 88%; }
-  100% { width: 95%; }
-}
 .loading-screen {
   display: flex;
   flex-direction: column;
