@@ -17,34 +17,15 @@
       <p class="loading-label">Loading...</p>
     </div>
 
-    <!-- Header -->
-    <div class="header">
-      <div style="display:flex;align-items:center;gap:16px">
-        <button class="hdr-btn" @click="goBack"><ArrowLeft :size="14" :stroke-width="2" /><span>Cases</span></button>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <span v-if="username" style="font-size:12px;color:var(--text-faint)">{{ username }}</span>
-        <button class="hdr-btn" @click="emit('logout')" style="font-size:11px">Sign Out</button>
-        <a
-          :href="`/api/cases/${props.id}/csv/${filterMode === 'filtered' ? '?mode=filtered' : ''}`"
-          class="hdr-btn"
-          download
-        ><Download :size="14" :stroke-width="2" /><span>CSV</span></a>
-        <div class="mode-toggle">
-          <button
-            class="mode-btn"
-            :class="{ 'mode-btn--active': videoMode === 'raw' }"
-            @click="videoMode = 'raw'"
-          >Raw + Overlay</button>
-          <button
-            v-if="data?.has_prediction_frames"
-            class="mode-btn"
-            :class="{ 'mode-btn--active': videoMode === 'prediction' }"
-            @click="videoMode = 'prediction'"
-          >Prediction Video</button>
-        </div>
-      </div>
-    </div>
+    <AppHeader
+      :case-id="props.id"
+      :username="username"
+      :filter-mode="filterMode"
+      v-model:video-mode="videoMode"
+      :has-prediction-frames="!!data?.has_prediction_frames"
+      @back="goBack"
+      @logout="emit('logout')"
+    />
 
     <div class="body-row">
 
@@ -457,9 +438,10 @@ import {
   ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick,
 } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, Download, Play, Pause, SkipBack, SkipForward } from "lucide-vue-next";
+import { Play, Pause, SkipBack, SkipForward } from "lucide-vue-next";
 import { CLASS_COLORS, formatTime } from "../utils/index.js";
 import { useCaseData } from "../composables/useCaseData.js";
+import AppHeader from "./AppHeader.vue";
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -1747,18 +1729,6 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   color: var(--text); display: flex; flex-direction: column;
 }
-.header {
-  padding: 10px 20px; display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid var(--border); background: var(--bg-1); flex-shrink: 0;
-}
-.hdr-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border: 1px solid var(--border-strong); border-radius: 5px;
-  color: var(--text-dim); font-size: 13px; cursor: pointer; background: transparent;
-  font-family: var(--font-mono); text-decoration: none;
-  transition: color .15s, border-color .15s;
-}
-.hdr-btn:hover { color: var(--text); border-color: var(--accent-border); }
 .btn-icon {
   display: inline-flex; align-items: center; justify-content: center;
 }
