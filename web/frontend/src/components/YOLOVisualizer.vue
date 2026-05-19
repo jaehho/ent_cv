@@ -32,102 +32,25 @@
       <!-- ── Left Panel ────────────────────────────────────────────────── -->
       <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
 
-        <!-- Playback -->
-        <div class="section">
-          <div class="section-label">Playback</div>
-          <div style="display:flex;gap:6px;margin-bottom:12px">
-            <button class="btn btn-icon" @click="seekFiltered(-1)" aria-label="Previous"><SkipBack :size="16" :stroke-width="2" /></button>
-            <button
-              class="btn btn-play btn-icon"
-              :class="isPlaying ? 'btn-play--pause' : 'btn-play--go'"
-              @click="togglePlay"
-              :aria-label="isPlaying ? 'Pause' : 'Play'"
-            >
-              <Pause v-if="isPlaying" :size="18" :stroke-width="2" />
-              <Play v-else :size="18" :stroke-width="2" />
-            </button>
-            <button class="btn btn-icon" @click="seekFiltered(1)" aria-label="Next"><SkipForward :size="16" :stroke-width="2" /></button>
-          </div>
-          <div style="display:flex;gap:4px">
-            <button
-              v-for="r in RATES"
-              :key="r"
-              class="btn btn-rate"
-              :class="{ 'btn-rate--active': playbackRate === r }"
-              @click="setRate(r)"
-            >{{ r }}x</button>
-          </div>
-
-          <!-- Jump filter -->
-          <div style="margin-top:12px">
-            <div style="font-size:11px;color:var(--text-faint);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">
-              Jump
-              <span v-if="jumpFilter !== 'none' && jumpFrames" style="color:var(--accent);font-size:10px;letter-spacing:0;text-transform:none;float:right">{{ jumpFrames.length }} frames</span>
-              <span v-else-if="jumpFilter === 'changed' && !changedFrames" style="color:var(--text-faint);font-size:10px;letter-spacing:0;text-transform:none;float:right">run filter first</span>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:3px">
-              <button
-                v-for="jf in JUMP_FILTERS"
-                :key="jf.value"
-                class="mode-btn"
-                :class="{ 'mode-btn--active': jumpFilter === jf.value }"
-                style="font-size:10px;padding:5px 6px;border:1px solid var(--border-strong);border-radius:4px"
-                @click="jumpFilter = jf.value"
-              >{{ jf.label }}</button>
-            </div>
-            <!-- Class picker -->
-            <div v-if="jumpFilter === 'class'" style="margin-top:8px;max-height:90px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;padding:2px 0">
-              <button
-                v-for="item in displayedClasses"
-                :key="item.idx"
-                @click="toggleJumpClass(item.idx)"
-                :style="{
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                  fontSize: '10px',
-                  border: jumpFilterClassIds.has(item.idx)
-                    ? `1px solid ${CLASS_COLORS[item.idx % CLASS_COLORS.length]}`
-                    : '1px solid var(--bg-hover)',
-                  background: jumpFilterClassIds.has(item.idx)
-                    ? CLASS_COLORS[item.idx % CLASS_COLORS.length] + '33'
-                    : 'transparent',
-                  color: jumpFilterClassIds.has(item.idx)
-                    ? CLASS_COLORS[item.idx % CLASS_COLORS.length]
-                    : 'var(--text-faint)',
-                  cursor: 'pointer',
-                }"
-              >{{ item.cls }}</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Time display -->
-        <div class="time-display">
-          <div class="time-value">
-            <input
-              type="text"
-              :value="formatTime(currentTime)"
-              @keydown.enter="e => { handleTimeInput(e.target.value); e.target.blur(); }"
-              @blur="e => handleTimeInput(e.target.value)"
-              class="time-input"
-              title="Enter time: M:SS, H:MM:SS, or bare number (minutes, e.g. 30 → 30:00, 30.5 → 30:30)"
-            />
-            <div v-if="timeInputError" class="time-input-error">{{ timeInputError }}</div>
-          </div>
-          <div class="time-sub">
-            Frame 
-            <input
-              type="number"
-              :value="currentFrame + 1"
-              @keydown.enter="e => handleFrameInput(e.target.value)"
-              @blur="e => handleFrameInput(e.target.value)"
-              min="1"
-              :max="data.total_frames"
-              class="frame-input"
-            />
-            / {{ data.total_frames }}
-          </div>
-        </div>
+        <PlayerControls
+          :is-playing="isPlaying"
+          :playback-rate="playbackRate"
+          :current-frame="currentFrame"
+          :current-time="currentTime"
+          :fps="data?.fps"
+          :total-frames="data?.total_frames ?? 0"
+          v-model:jump-filter="jumpFilter"
+          :jump-filter-class-ids="jumpFilterClassIds"
+          :jump-frame-count="jumpFrames?.length ?? null"
+          :changed-frames-available="!!changedFrames"
+          :displayed-classes="displayedClasses"
+          @toggle-play="togglePlay"
+          @set-rate="setRate"
+          @seek-prev="seekFiltered(-1)"
+          @seek-next="seekFiltered(1)"
+          @seek-frame="seekToFrame"
+          @toggle-jump-class="toggleJumpClass"
+        />
 
         <!-- View: raw or filtered detections (filter is produced offline by CLI) -->
         <div class="section">
@@ -438,10 +361,10 @@ import {
   ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick,
 } from "vue";
 import { useRouter } from "vue-router";
-import { Play, Pause, SkipBack, SkipForward } from "lucide-vue-next";
 import { CLASS_COLORS, formatTime } from "../utils/index.js";
 import { useCaseData } from "../composables/useCaseData.js";
 import AppHeader from "./AppHeader.vue";
+import PlayerControls from "./PlayerControls.vue";
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -451,7 +374,6 @@ const emit = defineEmits(["logout"]);
 const router = useRouter();
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const RATES = [0.25, 0.5, 1, 2, 4];
 const SPARKLINE_BINS = 20;
 
 // ── Canvas palette ─────────────────────────────────────────────────────────
@@ -464,15 +386,6 @@ const _canvas = {
   grid: "rgba(255,255,255,0.05)",
   viewportFill: "rgba(255,255,255,0.06)",
 };
-const JUMP_FILTERS = [
-  { value: 'none',    label: 'Off' },
-  { value: 'any',     label: 'Any' },
-  { value: 'class',   label: 'Class' },
-  { value: 'onset',   label: 'Onset' },
-  { value: 'offset',  label: 'Offset' },
-  { value: 'changed', label: 'Changed' },
-];
-
 // Precomputed RGB values for CLASS_COLORS to avoid repeated hex parsing in hot loops
 const CLASS_COLORS_RGB = CLASS_COLORS.map(hex => ({
   r: parseInt(hex.slice(1, 3), 16),
@@ -526,8 +439,6 @@ const rasterHeight      = ref(200);   // px height of raster canvas
 // ── Jump-filter state ─────────────────────────────────────────────────────
 const jumpFilter        = ref('none'); // 'none'|'any'|'class'|'onset'|'changed'
 const jumpFilterClassIds = ref(new Set()); // class indices when jumpFilter==='class'
-
-const timeInputError    = ref(null);  // shown near time input when format is invalid
 
 // ── Refs ───────────────────────────────────────────────────────────────────
 const videoRef    = ref(null);
@@ -1017,59 +928,6 @@ function seekToFrame(frame) {
       videoRef.value.currentTime = frame / fps - prevPartStartTs;
     }
   }
-}
-
-function handleFrameInput(value) {
-  if (!data.value) return;
-  const frameNum = parseInt(value, 10);
-  if (isNaN(frameNum)) return;
-  // Clamp to valid range (1-indexed display, 0-indexed internal)
-  const targetFrame = Math.max(1, Math.min(data.value.total_frames, frameNum)) - 1;
-  seekToFrame(targetFrame);
-}
-
-// Parse a time string and seek to the nearest frame.
-// Supported formats:
-//   H:MM:SS or H:MM:SS.ms   → hours:minutes:seconds
-//   M:SS or M:SS.ms         → minutes:seconds
-//   <number>                → interpreted as minutes (decimals = fractional minutes,
-//                             e.g. "30" → 30:00, "30.5" → 30:30)
-// Shows timeInputError for unrecognisable input.
-function handleTimeInput(value) {
-  if (!data.value) return;
-  const str = value.trim();
-  if (!str) return;
-  let totalSec = NaN;
-  // Try H:MM:SS.ms or H:MM:SS
-  const hms = str.match(/^(\d+):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$/);
-  if (hms) {
-    totalSec = parseInt(hms[1], 10) * 3600 + parseInt(hms[2], 10) * 60 + parseInt(hms[3], 10);
-    if (hms[4]) totalSec += parseFloat('0.' + hms[4]);
-  } else {
-    // Try M:SS.ms or M:SS
-    const ms = str.match(/^(\d+):(\d{1,2})(?:\.(\d+))?$/);
-    if (ms) {
-      totalSec = parseInt(ms[1], 10) * 60 + parseInt(ms[2], 10);
-      if (ms[3]) totalSec += parseFloat('0.' + ms[3]);
-    } else {
-      // Bare number: treat as minutes (decimals = fractional minutes).
-      // e.g. "30" → 1800 s, "30.5" → 1830 s
-      const bare = parseFloat(str);
-      if (!isNaN(bare) && /^[\d.]+$/.test(str)) {
-        totalSec = bare * 60;
-      }
-    }
-  }
-  if (isNaN(totalSec) || totalSec < 0) {
-    timeInputError.value = 'Invalid format — use M:SS, H:MM:SS, or a number (minutes)';
-    setTimeout(() => { timeInputError.value = null; }, 3000);
-    return;
-  }
-  timeInputError.value = null;
-  const fps = data.value.fps;
-  const frame = Math.round(totalSec * fps);
-  const clamped = Math.max(0, Math.min(data.value.total_frames - 1, frame));
-  seekToFrame(clamped);
 }
 
 function togglePlay() {
@@ -1729,9 +1587,6 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   color: var(--text); display: flex; flex-direction: column;
 }
-.btn-icon {
-  display: inline-flex; align-items: center; justify-content: center;
-}
 .mode-toggle {
   display: flex; border: 1px solid var(--border-strong); border-radius: 5px; overflow: hidden;
   font-family: var(--font-mono);
@@ -1754,57 +1609,6 @@ onUnmounted(() => {
 .section-label {
   font-size: 12px; color: var(--text-faint); letter-spacing: 2px;
   margin-bottom: 10px; text-transform: uppercase; display: block;
-}
-.btn {
-  padding: 8px 14px; background: var(--bg-2); border: 1px solid var(--border-strong);
-  border-radius: 5px; color: var(--text-dim); font-size: 14px; cursor: pointer;
-  font-family: var(--font-mono);
-}
-.btn-play { flex: 1; }
-.btn-play--pause { background: var(--warn-soft); border-color: var(--warn-border); }
-.btn-play--go { background: var(--accent-bg); border-color: var(--accent-border); }
-.btn-rate { flex: 1; min-width: 0; font-size: 11px; background: transparent; white-space: nowrap; text-align: center; padding: 8px 4px; }
-.btn-rate--active { background: var(--accent-bg); border-color: var(--accent-border); }
-
-.time-display {
-  padding: 12px; background: var(--bg-2); border-radius: 8px; margin-bottom: 20px;
-  border: 1px solid var(--border); text-align: center;
-}
-.time-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.time-input {
-  font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums;
-  background: transparent; border: none; border-bottom: 1px solid transparent;
-  color: inherit; font-family: inherit; text-align: center; width: 100%;
-  outline: none; padding: 0;
-}
-.time-input:hover { border-bottom-color: var(--border-strong); }
-.time-input:focus { border-bottom-color: var(--accent); }
-.time-input-error {
-  font-size: 11px; color: var(--warn); margin-top: 4px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.time-sub { font-size: 13px; color: var(--text-faint); margin-top: 4px; }
-.frame-input {
-  width: 60px;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border-strong);
-  color: var(--accent);
-  font-family: monospace;
-  font-size: 14px;
-  text-align: center;
-  padding: 2px 4px;
-  outline: none;
-  -webkit-appearance: none;
-  -moz-appearance: textfield;
-}
-.frame-input::-webkit-inner-spin-button,
-.frame-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.frame-input:focus {
-  border-bottom-color: var(--accent);
 }
 .custom-dropdown {
   position: relative;
