@@ -454,11 +454,12 @@
 
 <script setup>
 import {
-  ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick, shallowRef,
+  ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick,
 } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowLeft, Download, Play, Pause, SkipBack, SkipForward } from "lucide-vue-next";
 import { CLASS_COLORS, formatTime } from "../utils/index.js";
+import { useCaseData } from "../composables/useCaseData.js";
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -497,10 +498,16 @@ const CLASS_COLORS_RGB = CLASS_COLORS.map(hex => ({
   b: parseInt(hex.slice(5, 7), 16),
 }));
 
-// ── State ──────────────────────────────────────────────────────────────────
-const data              = shallowRef(null);  // large object — shallowRef avoids deep reactivity
-const videoSrc          = ref(null);
-const activeCaseName    = ref(null);
+// ── Case data (composable) ────────────────────────────────────────────────
+// data / video readiness / filter view state / per-frame and per-part lookups.
+const {
+  data, dataReady, videoSrc, videoReady, activeCaseName,
+  filterMode, filterInfo, rawFrameSet, filteredSummary, isLoading,
+  frameMap, partStartTs, partStartFrame,
+  fetchCase, fetchFilteredView,
+} = useCaseData();
+
+// ── UI state ──────────────────────────────────────────────────────────────
 const currentFrame      = ref(0);
 const isPlaying         = ref(false);
 const enabledClasses    = ref(new Set());
@@ -521,9 +528,6 @@ const hoverX = computed(() => {
 const playbackRate      = ref(1);
 const isDraggingTimeline = ref(false);
 const videoMode         = ref('raw');  // 'raw' | 'prediction'
-const dataReady         = ref(false);
-const videoReady        = ref(false);
-const isLoading         = computed(() => !dataReady.value || !videoReady.value);
 const classSortMode     = ref('custom');  // 'default' | 'frequency' | 'alphabetical' | 'custom'
 const customOrder       = ref([]);  // array of class indices (empty = not initialized)
 const draggingClassIdx  = ref(null);  // currently dragging class index
@@ -540,14 +544,6 @@ const rasterHeight      = ref(200);   // px height of raster canvas
 // ── Jump-filter state ─────────────────────────────────────────────────────
 const jumpFilter        = ref('none'); // 'none'|'any'|'class'|'onset'|'changed'
 const jumpFilterClassIds = ref(new Set()); // class indices when jumpFilter==='class'
-
-// ── Filter view state ──────────────────────────────────────────────────────
-// Postprocessing itself is run offline via the CLI; the UI only chooses
-// which output to display and surfaces what filter produced the filtered file.
-const filterMode        = ref('raw');        // 'raw' | 'filtered'
-const filterInfo        = ref(null);
-const rawFrameSet       = shallowRef(null);  // Set<number> of raw frame indices
-const filteredSummary   = ref(null);          // class_time_sec etc from filtered_summary.json
 
 const timeInputError    = ref(null);  // shown near time input when format is invalid
 
@@ -692,34 +688,6 @@ const currentPartName = computed(() => {
     }
   }
   return bestSource ? bestSource.split('/').pop().replace(/\.mp4$/i, '') : null;
-});
-
-// Sparse lookup: frame number → result entry
-const frameMap = computed(() => {
-  if (!data.value) return new Map();
-  return new Map(data.value.results.map(r => [r.frame, r]));
-});
-
-// Per-part start timestamp (global ts of the first frame in each part file).
-// Derived from frame number + fps since no timestamp is stored in detections.json.
-const partStartTs = computed(() => {
-  if (!data.value) return new Map();
-  const fps = data.value.fps;
-  const map = new Map(); // source path → start timestamp
-  for (const r of data.value.results) {
-    if (!map.has(r.source)) map.set(r.source, r.frame / fps);
-  }
-  return map;
-});
-
-// Per-part start frame number (global frame index of the first frame in each part).
-const partStartFrame = computed(() => {
-  if (!data.value) return new Map();
-  const map = new Map(); // source path → start frame number
-  for (const r of data.value.results) {
-    if (!map.has(r.source)) map.set(r.source, r.frame);
-  }
-  return map;
 });
 
 // Start timestamp of whichever part is currently loaded in the video element.
@@ -991,92 +959,26 @@ const transitionMatrix = computed(() => {
   return { classes, grid, cellSize, rowLabelW: ROW_LABEL_W };
 });
 
-// ── Helper: Chunked Array Processing ───────────────────────────────────────
-function buildFrameSetChunked(results, chunkSize = 15000) {
-  return new Promise((resolve) => {
-    const frameSet = new Set();
-    let i = 0;
-    
-    function processChunk() {
-      const end = Math.min(i + chunkSize, results.length);
-      for (; i < end; i++) {
-        frameSet.add(results[i].frame);
-      }
-      if (i < results.length) {
-        requestIdleCallback ? requestIdleCallback(processChunk) : setTimeout(processChunk, 0);
-      } else {
-        resolve(frameSet);
-      }
-    }
-    
-    // Start mapping in background
-    processChunk();
-  });
-}
-
 // ── Actions ────────────────────────────────────────────────────────────────
 async function loadCase(caseName) {
-  dataReady.value  = false;
-  videoReady.value = false;
   try {
-    const res = await fetch(`/api/cases/${caseName}/detections/`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const parsed = await res.json();
-    
-    // Clear video src BEFORE updating data so the currentPartVideoUrl watcher
-    // fires with a clean slate. Setting data first triggers the watcher early;
-    // then nulling videoSrc aborts the load and loadedmetadata never fires,
-    // leaving videoReady stuck at false and the loading screen stuck forever.
-    videoSrc.value = null;
+    const parsed = await fetchCase(caseName, { isPredictionMode: videoMode.value === "prediction" });
 
-    // Deep-freeze to guarantee View proxy skips traversing large nested arrays
-    data.value = Object.freeze(parsed);
-    dataReady.value = true;
-    // Prediction mode has no video element — treat as ready immediately
-    if (videoMode.value === 'prediction') {
-      videoReady.value = true;
-    }
-
-    filteredSummary.value = null;
-    filterInfo.value = null;
-    filterMode.value = 'raw';
-    activeCaseName.value = caseName;
+    // UI-state resets that don't belong to case-data: classes, customOrder,
+    // playback position, timeline zoom/pan, playback rate.
     enabledClasses.value = new Set(parsed.classes.map((_, i) => i));
     jumpFilterClassIds.value = new Set();
-
-    // Initialize custom order if not matching or empty
     if (customOrder.value.length !== parsed.classes.length) {
       customOrder.value = parsed.classes.map((_, i) => i);
     }
     currentFrame.value = 0;
-    zoomLevel.value = 1;      // reset timeline zoom
-    panOffset.value = 0;      // reset timeline pan (also resets minimap viewport reactively)
-    playbackRate.value = 1;   // reset speed ref only — element property synced by setRate() when video loads
-
-    // Build set implicitly off the main render thread to prevent UI freezing
-    buildFrameSetChunked(parsed.results).then((set) => {
-      rawFrameSet.value = set;
-    });
+    zoomLevel.value = 1;
+    panOffset.value = 0;
+    playbackRate.value = 1;
 
     nextTick(() => seekToFrame(0));
   } catch (err) {
     alert(`Failed to load case "${caseName}": ${err.message}`);
-  }
-}
-
-async function reloadData(caseName, mode) {
-  const res = await fetch(`/api/cases/${caseName}/detections/${mode === 'filtered' ? '?mode=filtered' : ''}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status} — no filtered data yet (run filter first)`);
-  const parsed = await res.json();
-  data.value = parsed;
-  filterInfo.value = parsed._filter ?? null;
-  if (mode === 'raw') {
-    rawFrameSet.value = new Set(parsed.results.map(r => r.frame));
-  } else {
-    try {
-      const sumRes = await fetch(`/api/cases/${caseName}/filtered-summary/`);
-      if (sumRes.ok) filteredSummary.value = await sumRes.json();
-    } catch {}
   }
 }
 
@@ -1546,7 +1448,7 @@ watch(customOrder, (order) => {
 watch(filterMode, async (newMode, oldMode) => {
   if (!activeCaseName.value || !data.value) return;
   try {
-    await reloadData(activeCaseName.value, newMode);
+    await fetchFilteredView(activeCaseName.value, newMode);
   } catch (err) {
     filterMode.value = oldMode;  // revert toggle
     alert(`Could not load ${newMode} detections: ${err.message}`);
