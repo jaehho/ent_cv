@@ -24,6 +24,7 @@
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <span v-if="username" style="font-size:12px;color:var(--text-faint)">{{ username }}</span>
+        <ThemeToggle />
         <button class="hdr-btn" @click="emit('logout')" style="font-size:11px">Sign Out</button>
         <a
           :href="`/api/cases/${props.id}/csv/${filterMode === 'filtered' ? '?mode=filtered' : ''}`"
@@ -459,6 +460,7 @@ import {
 import { useRouter } from "vue-router";
 import { ArrowLeft, Download, Play, Pause, SkipBack, SkipForward } from "lucide-vue-next";
 import { CLASS_COLORS, formatTime } from "../utils/index.js";
+import ThemeToggle from "./ThemeToggle.vue";
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -475,7 +477,7 @@ const SPARKLINE_BINS = 20;
 // Canvas drawing can't reference CSS custom properties directly, so we mirror
 // a small theme-aware palette here and refresh it when prefers-color-scheme changes.
 const DARK_CANVAS_PALETTE = {
-  bg: "#0a0e14",
+  bg: "#0a0f17",                       // one notch below --bg-0 — raster reads inset
   marker: "#ffffff",
   label: "#ffffff",
   grid: "rgba(255,255,255,0.05)",
@@ -483,15 +485,21 @@ const DARK_CANVAS_PALETTE = {
 };
 const LIGHT_CANVAS_PALETTE = {
   bg: "#ffffff",
-  marker: "#1a1d24",
-  label: "#ffffff", // bbox labels are drawn on coloured class backgrounds — keep white
+  marker: "#1a1f29",                   // matches --text in light mode
+  label: "#ffffff",                    // bbox labels are drawn on coloured class backgrounds — keep white
   grid: "rgba(0,0,0,0.06)",
   viewportFill: "rgba(0,0,0,0.05)",
 };
 const _canvas = { ...DARK_CANVAS_PALETTE };
 function refreshCanvasPalette() {
-  const isLight = typeof window !== "undefined"
-    && window.matchMedia?.("(prefers-color-scheme: light)").matches;
+  // Honor manual override via data-theme attribute first, then prefers-color-scheme.
+  let isLight = false;
+  if (typeof document !== "undefined") {
+    const attr = document.documentElement.getAttribute("data-theme");
+    if (attr === "light") isLight = true;
+    else if (attr === "dark") isLight = false;
+    else isLight = window.matchMedia?.("(prefers-color-scheme: light)").matches === true;
+  }
   Object.assign(_canvas, isLight ? LIGHT_CANVAS_PALETTE : DARK_CANVAS_PALETTE);
 }
 const JUMP_FILTERS = [
@@ -1812,9 +1820,10 @@ function onKeyDown(e) {
   }
 }
 
-// Theme-aware canvas palette: refresh now and on color-scheme change.
+// Theme-aware canvas palette: refresh on either OS-level scheme change
+// or a manual toggle (dispatched by useTheme as a 'theme-changed' window event).
 let _colorSchemeMql = null;
-function onColorSchemeChange() {
+function onThemeChange() {
   refreshCanvasPalette();
   scheduleDraws(7); // overlay | raster | minimap
 }
@@ -1827,7 +1836,8 @@ onMounted(() => {
 
   refreshCanvasPalette();
   _colorSchemeMql = window.matchMedia?.("(prefers-color-scheme: light)");
-  _colorSchemeMql?.addEventListener?.("change", onColorSchemeChange);
+  _colorSchemeMql?.addEventListener?.("change", onThemeChange);
+  window.addEventListener("theme-changed", onThemeChange);
 
   // Load custom order from localStorage
   const saved = localStorage.getItem('yolo-visualizer-custom-order');
@@ -1848,8 +1858,9 @@ onUnmounted(() => {
   window.removeEventListener("mouseup", onGlobalMouseUp);
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("click", handleClickOutside);
-  _colorSchemeMql?.removeEventListener?.("change", onColorSchemeChange);
+  _colorSchemeMql?.removeEventListener?.("change", onThemeChange);
   _colorSchemeMql = null;
+  window.removeEventListener("theme-changed", onThemeChange);
   if (_rafId) cancelAnimationFrame(_rafId);
   // Cancel pending video frame callback if active
   if (videoRef.value && typeof videoRef.value.cancelVideoFrameCallback === 'function') {

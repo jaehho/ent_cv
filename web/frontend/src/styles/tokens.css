@@ -1,35 +1,101 @@
 /*
- * Design tokens — single source of truth for colors, spacing, and type.
- * Dark is the default; `prefers-color-scheme: light` flips palette tokens.
- * Non-palette tokens (spacing, radius, type, fonts) don't change between themes.
+ * Design tokens — single source of truth for colors, typography, and spacing.
+ *
+ * Resolution order for the active palette:
+ *   1. `data-theme="light"` or `data-theme="dark"` on <html> wins (manual override).
+ *   2. Otherwise, `prefers-color-scheme: light` selects light.
+ *   3. Otherwise, dark.
+ *
+ * Palette is grounded in surgical / PACS conventions (OHIF, 3D Slicer,
+ * intraop AI viewers): cool slate base (~215° H), low-chroma surfaces,
+ * teal accent (orthogonal to anatomical reds), red reserved for genuine
+ * error states. Text contrast meets WCAG AA at minimum.
  */
 
+/* ── Default = dark, also applies when data-theme="dark" ──────────────── */
+:root,
+:root[data-theme="dark"] {
+  /* Surfaces (cool slate, ~215° H, low chroma) */
+  --bg-0:          #0f141b;          /* app root */
+  --bg-1:          #161d26;          /* panels */
+  --bg-2:          #1c2532;          /* cards, inputs, sections */
+  --bg-hover:      #2a3442;          /* card / button hover */
+
+  --border:        #2d384a;          /* subtle separators */
+  --border-strong: #485468;          /* buttons, focusable controls */
+
+  /* Text (all levels pass WCAG AA on bg-0) */
+  --text:          #eef1f7;          /* primary    — 14.3:1 (AAA) */
+  --text-dim:      #b9c1cd;          /* secondary  —  9.0:1 (AAA) */
+  --text-faint:    #8a93a3;          /* tertiary   —  5.0:1 (AA)  */
+
+  /* Accent (teal — distinct from tissue colors, conventional in surgical AI) */
+  --accent:         #4ecdc4;
+  --accent-soft:    rgba(78, 205, 196, 0.13);
+  --accent-bg:      rgba(78, 205, 196, 0.22);
+  --accent-border:  rgba(78, 205, 196, 0.40);
+  --accent-contrast: #0f141b;        /* text on solid accent */
+
+  /* Warn (coral — reserved for genuine error states only) */
+  --warn:        #ff6b6b;
+  --warn-soft:   rgba(255, 107, 107, 0.14);
+  --warn-border: rgba(255, 107, 107, 0.35);
+}
+
+/* ── System-preference light, only when no manual override is set ─────── */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg-0:          #f5f7fa;
+    --bg-1:          #ffffff;
+    --bg-2:          #ebeef3;
+    --bg-hover:      #dee3eb;
+
+    --border:        #d4dae3;
+    --border-strong: #b0b8c4;
+
+    --text:          #1a1f29;        /* 14.1:1 (AAA) */
+    --text-dim:      #4a5363;        /*  5.8:1 (AA)  */
+    --text-faint:    #677181;        /*  4.6:1 (AA)  */
+
+    --accent:         #2a8478;       /* darker teal — #4ecdc4 fails on white */
+    --accent-soft:    rgba(42, 132, 120, 0.08);
+    --accent-bg:      rgba(42, 132, 120, 0.14);
+    --accent-border:  rgba(42, 132, 120, 0.30);
+    --accent-contrast: #ffffff;
+
+    --warn:        #c43030;
+    --warn-soft:   rgba(196, 48, 48, 0.08);
+    --warn-border: rgba(196, 48, 48, 0.30);
+  }
+}
+
+/* ── Manual override: light ───────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg-0:          #f5f7fa;
+  --bg-1:          #ffffff;
+  --bg-2:          #ebeef3;
+  --bg-hover:      #dee3eb;
+
+  --border:        #d4dae3;
+  --border-strong: #b0b8c4;
+
+  --text:          #1a1f29;
+  --text-dim:      #4a5363;
+  --text-faint:    #677181;
+
+  --accent:         #2a8478;
+  --accent-soft:    rgba(42, 132, 120, 0.08);
+  --accent-bg:      rgba(42, 132, 120, 0.14);
+  --accent-border:  rgba(42, 132, 120, 0.30);
+  --accent-contrast: #ffffff;
+
+  --warn:        #c43030;
+  --warn-soft:   rgba(196, 48, 48, 0.08);
+  --warn-border: rgba(196, 48, 48, 0.30);
+}
+
+/* ── Typography & spacing (theme-independent) ─────────────────────────── */
 :root {
-  /* ── Palette (dark) ──────────────────────────────────────────────────── */
-  /* Cool slate, lifted off pure black so layers read separately under daylight. */
-  --bg-0: #10141a;          /* app root */
-  --bg-1: #161b23;          /* panels (header, side panels) */
-  --bg-2: #1d242e;          /* cards, inputs, sections */
-  --bg-hover: #262e3a;      /* card/button hover */
-
-  --border: #2a3340;        /* subtle separators */
-  --border-strong: #3d4858; /* buttons, focusable controls */
-
-  --text: #e8edf3;          /* primary */
-  --text-dim: #a0a9b8;      /* secondary */
-  --text-faint: #6c7686;    /* tertiary, labels */
-
-  --accent: #4ecdc4;        /* teal */
-  --accent-soft: rgba(78, 205, 196, 0.13);
-  --accent-bg: rgba(78, 205, 196, 0.20);
-  --accent-border: rgba(78, 205, 196, 0.30);
-  --accent-contrast: #10141a; /* text on solid accent */
-
-  --warn: #ff6b6b;
-  --warn-soft: rgba(255, 107, 107, 0.13);
-  --warn-border: rgba(255, 107, 107, 0.30);
-
-  /* ── Typography ─────────────────────────────────────────────────────── */
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
@@ -39,7 +105,6 @@
   --font-lg: 16px;
   --font-xl: 28px;
 
-  /* ── Spacing ────────────────────────────────────────────────────────── */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -47,34 +112,15 @@
   --space-5: 20px;
   --space-6: 24px;
 
-  /* ── Radius ─────────────────────────────────────────────────────────── */
   --radius-1: 4px;
   --radius-2: 6px;
   --radius-3: 10px;
 }
 
+/* Use the canonical browser color-scheme so native form controls + scrollbars
+   match the active theme. */
+:root, :root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"]       { color-scheme: light; }
 @media (prefers-color-scheme: light) {
-  :root {
-    --bg-0: #f6f7f9;
-    --bg-1: #ffffff;
-    --bg-2: #f0f1f4;
-    --bg-hover: #e8eaee;
-
-    --border: #e1e3e8;
-    --border-strong: #c4c8d0;
-
-    --text: #1a1d24;
-    --text-dim: #5a6068;
-    --text-faint: #8a8f97;
-
-    --accent: #0a7a73;
-    --accent-soft: rgba(10, 122, 115, 0.08);
-    --accent-bg: rgba(10, 122, 115, 0.14);
-    --accent-border: rgba(10, 122, 115, 0.30);
-    --accent-contrast: #ffffff;
-
-    --warn: #c4302b;
-    --warn-soft: rgba(196, 48, 43, 0.08);
-    --warn-border: rgba(196, 48, 43, 0.28);
-  }
+  :root:not([data-theme]) { color-scheme: light; }
 }

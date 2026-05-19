@@ -5,6 +5,7 @@
         <div></div>
         <div class="sign-out-area">
           <span v-if="username" class="username">{{ username }}</span>
+          <ThemeToggle />
           <button class="sign-out-btn" @click="emit('logout')">Sign Out</button>
         </div>
       </div>
@@ -38,6 +39,7 @@
 import { ref, computed, shallowRef, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { Folder } from "lucide-vue-next";
+import ThemeToggle from "./ThemeToggle.vue";
 
 defineProps({ username: { type: String, default: "" } });
 const emit = defineEmits(["logout"]);
