@@ -229,78 +229,22 @@
       <!-- ── Right Stats Panel ──────────────────────────────────────────── -->
       <div class="right-panel" ref="matrixContainerRef" :style="{ display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0', width: rightPanelWidth + 'px' }">
 
-        <!-- Classes (top, scrollable) -->
-        <div style="flex:1;min-height:0;overflow-y:auto;padding:10px 14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <span class="section-label" style="margin-bottom:0">Classes</span>
-            <div class="custom-dropdown">
-              <span class="section-label" style="margin-bottom:0;margin-right:4px">Sort:</span>
-              <div class="dropdown-trigger" @click="showSortDropdown = !showSortDropdown">
-                <span class="dropdown-value">{{ classSortMode }}</span>
-                <span class="dropdown-chevron">▾</span>
-              </div>
-              <div v-if="showSortDropdown" class="dropdown-menu">
-                <div class="dropdown-item" @click="classSortMode = 'default'; showSortDropdown = false">Default</div>
-                <div class="dropdown-item" @click="classSortMode = 'frequency'; showSortDropdown = false">Frequency</div>
-                <div class="dropdown-item" @click="classSortMode = 'alphabetical'; showSortDropdown = false">Alphabetical</div>
-                <div class="dropdown-item" @click="classSortMode = 'custom'; showSortDropdown = false">Custom</div>
-              </div>
-            </div>
-          </div>
-          <div
-            v-for="(item, displayIdx) in displayedClasses"
-            :key="item.idx"
-            class="class-row"
-            :class="{ 'class-row--dragging': draggingClassIdx === displayIdx }"
-            :style="{
-              background: enabledClasses.has(item.idx) ? 'var(--accent-soft)' : 'transparent',
-              opacity: classStats[item.idx]?.count === 0 ? 0.25 : (enabledClasses.has(item.idx) ? 1 : 0.35),
-              cursor: classSortMode === 'custom' ? 'move' : 'pointer',
-              pointerEvents: classStats[item.idx]?.count === 0 ? 'none' : undefined,
-            }"
-            :draggable="classSortMode === 'custom'"
-            @click="guardedToggleClass(item.idx)"
-            @dblclick.stop="handleClassDoubleClick(item.idx)"
-            @dragstart="handleDragStart($event, displayIdx)"
-            @dragover.prevent="handleDragOver($event, displayIdx)"
-            @drop="handleDrop($event, displayIdx)"
-            @dragend="handleDragEnd"
-          >
-            <div v-if="classSortMode === 'custom'" style="margin-right:6px;color:var(--text-faint);cursor:grab;user-select:none" @mousedown.stop>⋮⋮</div>
-            <div class="class-dot" :style="{ background: classStats[item.idx]?.count === 0 ? 'var(--border-strong)' : CLASS_COLORS[item.idx % CLASS_COLORS.length] }" />
-            <div style="flex:1;min-width:0">
-              <div class="class-name">{{ item.cls }}</div>
-              <div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap">
-                <div v-if="classStats[item.idx]?.count === 0" class="class-stat" style="color:var(--text-faint);font-style:italic">
-                  no detections
-                </div>
-                <div v-else-if="classStats[item.idx]" class="class-stat">
-                  {{ classStats[item.idx].pct.toFixed(0) }}% frames
-                </div>
-                <div v-if="filteredSummary?.onset_count?.[item.cls] != null" style="font-size:11px;color:var(--text-dim)">
-                  {{ filteredSummary.onset_count[item.cls] }}× onset
-                </div>
-                <div v-if="filterMode === 'filtered' && filteredSummary?.class_time_sec?.[item.cls] != null" style="font-size:11px;color:var(--accent)">
-                  {{ filteredSummary.class_time_sec[item.cls].toFixed(1) }}s
-                </div>
-              </div>
-              <div v-if="enabledClasses.has(item.idx) && classStats[item.idx]" style="width:100%;height:24px;margin-top:6px">
-                <svg width="100%" height="24" viewBox="0 0 40 24" preserveAspectRatio="none">
-                  <rect
-                    v-for="(p, i) in sparklines[item.idx]"
-                    :key="i"
-                    :x="i * 2"
-                    :y="24 - p * 24"
-                    width="1.5"
-                    :height="p * 24"
-                    :fill="CLASS_COLORS[item.idx % CLASS_COLORS.length]"
-                    opacity="0.7"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ClassPanel
+          :displayed-classes="displayedClasses"
+          :enabled-classes="enabledClasses"
+          :class-stats="classStats"
+          :sparklines="sparklines"
+          :filter-mode="filterMode"
+          :filtered-summary="filteredSummary"
+          v-model:class-sort-mode="classSortMode"
+          :dragging-class-idx="draggingClassIdx"
+          @toggle-class="guardedToggleClass"
+          @dblclick-class="handleClassDoubleClick"
+          @drag-start="handleDragStart"
+          @drag-over="handleDragOver"
+          @drop="handleDrop"
+          @drag-end="handleDragEnd"
+        />
 
         <!-- Transitions (filtered mode, when summary available) -->
         <div v-if="transitionMatrix"
@@ -365,6 +309,7 @@ import { CLASS_COLORS, formatTime } from "../utils/index.js";
 import { useCaseData } from "../composables/useCaseData.js";
 import AppHeader from "./AppHeader.vue";
 import PlayerControls from "./PlayerControls.vue";
+import ClassPanel from "./ClassPanel.vue";
 
 const props = defineProps({
   id: { type: String, required: true },
@@ -426,7 +371,6 @@ const videoMode         = ref('raw');  // 'raw' | 'prediction'
 const classSortMode     = ref('custom');  // 'default' | 'frequency' | 'alphabetical' | 'custom'
 const customOrder       = ref([]);  // array of class indices (empty = not initialized)
 const draggingClassIdx  = ref(null);  // currently dragging class index
-const showSortDropdown  = ref(false);  // sort dropdown visibility
 
 // ── Panel resizing state ──────────────────────────────────────────────────
 const leftPanelWidth    = ref(280);
@@ -1001,14 +945,6 @@ function guardedToggleClass(idx) {
   toggleClass(idx);
 }
 
-function handleClickOutside(e) {
-  if (!showSortDropdown.value) return;
-  const dropdown = e.target.closest('.custom-dropdown');
-  if (!dropdown) {
-    showSortDropdown.value = false;
-  }
-}
-
 // ── Panel resize handlers ──────────────────────────────────────────────────
 function startResize(target, e) {
   e.preventDefault();
@@ -1545,7 +1481,6 @@ onMounted(() => {
   window.addEventListener("mousemove", onGlobalMouseMove);
   window.addEventListener("mouseup", onGlobalMouseUp);
   window.addEventListener("keydown", onKeyDown);
-  window.addEventListener("click", handleClickOutside);
 
   // Load custom order from localStorage
   const saved = localStorage.getItem('yolo-visualizer-custom-order');
@@ -1565,7 +1500,6 @@ onUnmounted(() => {
   window.removeEventListener("mousemove", onGlobalMouseMove);
   window.removeEventListener("mouseup", onGlobalMouseUp);
   window.removeEventListener("keydown", onKeyDown);
-  window.removeEventListener("click", handleClickOutside);
   if (_rafId) cancelAnimationFrame(_rafId);
   // Cancel pending video frame callback if active
   if (videoRef.value && typeof videoRef.value.cancelVideoFrameCallback === 'function') {
@@ -1610,78 +1544,6 @@ onUnmounted(() => {
   font-size: 12px; color: var(--text-faint); letter-spacing: 2px;
   margin-bottom: 10px; text-transform: uppercase; display: block;
 }
-.custom-dropdown {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.dropdown-trigger {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-}
-
-.dropdown-value {
-  font-size: 12px;
-  font-family: var(--font-mono);
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  transition: color 0.15s;
-}
-
-.dropdown-trigger:hover .dropdown-value {
-  color: var(--text-dim);
-}
-
-.dropdown-chevron {
-  margin-left: 4px;
-  font-size: 10px;
-  color: var(--text-faint);
-}
-
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
-  background: var(--bg-2);
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
-  padding: 4px 0;
-  z-index: 1000;
-  min-width: 120px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.dropdown-item {
-  padding: 6px 12px;
-  font-size: 12px;
-  font-family: var(--font-mono);
-  color: var(--text-dim);
-  cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-
-.dropdown-item:hover {
-  background: var(--border);
-  color: var(--text);
-}
-
-.class-row {
-  display: flex; align-items: center; gap: 8px; padding: 7px 8px;
-  margin-bottom: 2px; border-radius: 6px; cursor: pointer; transition: all 0.15s;
-}
-.class-row--dragging {
-  opacity: 0.5;
-}
-.class-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-.class-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.class-stat { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
-
 /* ── Main content ───────────────────────────────────────────────────────── */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .video-area {
