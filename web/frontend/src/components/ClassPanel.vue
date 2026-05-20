@@ -52,6 +52,11 @@
           </div>
           <div v-else-if="classStats[item.idx]" class="class-stat">
             {{ classStats[item.idx].pct.toFixed(0) }}% frames
+            <span
+              v-if="rawClassStats && rawClassStats[item.idx]"
+              class="class-stat-secondary"
+              title="Raw detections before filtering"
+            >(raw: {{ rawClassStats[item.idx].pct.toFixed(0) }}%)</span>
           </div>
           <div
             v-if="filteredSummary?.onset_count?.[item.cls] != null"
@@ -60,7 +65,7 @@
             {{ filteredSummary.onset_count[item.cls] }}× onset
           </div>
           <div
-            v-if="filterMode === 'filtered' && filteredSummary?.class_time_sec?.[item.cls] != null"
+            v-if="filteredSummary?.class_time_sec?.[item.cls] != null"
             class="class-extra class-extra--time"
           >
             {{ filteredSummary.class_time_sec[item.cls].toFixed(1) }}s
@@ -101,8 +106,10 @@ const props = defineProps({
   displayedClasses:  { type: Array,   required: true },
   enabledClasses:    { type: Object,  required: true },  // Set<number>
   classStats:        { type: Array,   required: true },
+  // Secondary stats from the raw detections, only when filtered is the
+  // primary view. Rendered as "(raw: N%)" beside the primary percentage.
+  rawClassStats:     { type: Array,   default: null },
   sparklines:        { type: Object,  required: true },
-  filterMode:        { type: String,  default: "raw" },
   filteredSummary:   { type: Object,  default: null },
   classSortMode:     { type: String,  required: true },
   draggingClassIdx:  { type: Number,  default: null },
@@ -206,6 +213,10 @@ onUnmounted(() => window.removeEventListener("click", handleClickOutside));
 }
 .class-stat { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
 .class-stat--empty { font-style: italic; }
+.class-stat-secondary {
+  margin-left: 4px; font-size: 10px;
+  color: var(--text-faint); opacity: 0.7;
+}
 .class-extra { font-size: 11px; }
 .class-extra--onset { color: var(--text-dim); }
 .class-extra--time  { color: var(--accent); }

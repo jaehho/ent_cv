@@ -20,7 +20,7 @@
     <AppHeader
       :case-id="props.id"
       :username="username"
-      :filter-mode="filterMode"
+      :filter-mode="hasFilteredOverlay ? 'filtered' : 'raw'"
       v-model:video-mode="videoMode"
       :has-prediction-frames="!!data?.has_prediction_frames"
       @back="goBack"
@@ -52,23 +52,23 @@
           @toggle-jump-class="toggleJumpClass"
         />
 
-        <!-- View: raw or filtered detections (filter is produced offline by CLI) -->
-        <div class="section">
-          <div class="section-label">View</div>
-
-          <div class="mode-toggle" style="margin-bottom:12px">
-            <button class="mode-btn" :class="{ 'mode-btn--active': filterMode === 'raw' }" style="flex:1" @click="filterMode = 'raw'">Raw</button>
-            <button class="mode-btn" :class="{ 'mode-btn--active': filterMode === 'filtered' }" style="flex:1" @click="filterMode = 'filtered'">Filtered</button>
+        <!-- Filter info: shown when filtered detections are loaded (raw + filtered both on screen) -->
+        <div v-if="hasFilteredOverlay && filterInfo" class="filter-info-card">
+          <div class="filter-info-row">
+            <span class="filter-info-label">Filter</span>
+            <span class="filter-info-method">{{ filterInfo.method.replace(/_/g, ' ') }}</span>
           </div>
-
-          <div v-if="filterMode === 'filtered' && filterInfo" style="font-size:11px;color:var(--text-faint);padding:7px 8px;background:var(--bg-2);border-radius:6px;border:1px solid var(--border)">
-            <span style="color:var(--text-faint)">{{ filterInfo.method.replace(/_/g, ' ') }}</span>
+          <div class="filter-info-row filter-info-row--params">
             <template v-if="filterInfo.min_duration_sec != null">
-              &nbsp;· min {{ filterInfo.min_duration_sec }}s / gap {{ filterInfo.gap_fill_sec }}s
+              min {{ filterInfo.min_duration_sec }}s · gap {{ filterInfo.gap_fill_sec }}s
             </template>
             <template v-else-if="filterInfo.window_sec != null">
-              &nbsp;· window {{ filterInfo.window_sec }}s / thr {{ filterInfo.vote_threshold }}
+              window {{ filterInfo.window_sec }}s · thr {{ filterInfo.vote_threshold }}
             </template>
+          </div>
+          <div class="filter-info-legend">
+            <span class="legend-swatch legend-swatch--filtered"></span>kept
+            <span class="legend-swatch legend-swatch--raw"></span>rejected (raw)
           </div>
         </div>
       </div>
@@ -233,8 +233,8 @@
           :displayed-classes="displayedClasses"
           :enabled-classes="enabledClasses"
           :class-stats="classStats"
+          :raw-class-stats="rawOverlayClassStats"
           :sparklines="sparklines"
-          :filter-mode="filterMode"
           :filtered-summary="filteredSummary"
           v-model:class-sort-mode="classSortMode"
           :dragging-class-idx="draggingClassIdx"
@@ -339,12 +339,14 @@ const CLASS_COLORS_RGB = CLASS_COLORS.map(hex => ({
 }));
 
 // ── Case data (composable) ────────────────────────────────────────────────
-// data / video readiness / filter view state / per-frame and per-part lookups.
+// `data` is the primary view (filtered if disk has it, raw otherwise).
+// `rawOverlayResults` is raw, populated only when filtered is primary — the
+// overlay canvas draws it at low opacity beneath the primary boxes.
 const {
-  data, dataReady, videoSrc, videoReady, activeCaseName,
-  filterMode, filterInfo, rawFrameSet, filteredSummary, isLoading,
+  data, rawOverlayResults, dataReady, videoSrc, videoReady, activeCaseName,
+  filterInfo, rawFrameSet, filteredSummary, isLoading, hasFilteredOverlay,
   frameMap, partStartTs, partStartFrame,
-  fetchCase, fetchFilteredView,
+  fetchCase,
 } = useCaseData();
 
 // ── UI state ──────────────────────────────────────────────────────────────
@@ -537,9 +539,10 @@ const filteredSparseMap = computed(() => {
 });
 
 // Frames changed by filtering: present in raw but absent in filtered, or vice-versa.
-// Only non-null when in filtered mode — drives the change-strip in the raster/minimap.
+// Drives the change-strip in the raster/minimap. Null when there's no filtered
+// overlay to compare against.
 const changedFrames = computed(() => {
-  if (filterMode.value !== 'filtered' || !rawFrameSet.value || !data.value) return null;
+  if (!hasFilteredOverlay.value || !rawFrameSet.value || !data.value) return null;
   const rawSet = rawFrameSet.value;
   const filtSet = new Set(frameMap.value.keys());
   const changed = new Set();
@@ -626,28 +629,47 @@ const currentDetections = computed(() => {
   return entry.detections.filter(d => enabledClasses.value.has(d.class_id));
 });
 
+// Raw frame map for the overlay: built only when filtered is the primary
+// view (rawOverlayResults is populated then). The overlay canvas draws
+// these at low opacity beneath the primary boxes so you can see what the
+// filter rejected.
+const rawOverlayFrameMap = computed(() => {
+  if (!rawOverlayResults.value) return null;
+  return new Map(rawOverlayResults.value.map(r => [r.frame, r]));
+});
+
+const currentRawOverlayDetections = computed(() => {
+  if (!rawOverlayFrameMap.value) return null;
+  const entry = rawOverlayFrameMap.value.get(currentFrame.value);
+  if (!entry) return [];
+  return entry.detections.filter(d => enabledClasses.value.has(d.class_id));
+});
+
 // ── Optimized: single-pass class stats ─────────────────────────────────────
-const classStats = computed(() => {
-  if (!data.value) return [];
+const classStats = computed(() => computeClassStats(frameMap.value));
+// Parallel stats over the raw overlay — null when filtered isn't primary, so
+// the class panel falls back to showing just the primary count.
+const rawOverlayClassStats = computed(() =>
+  rawOverlayFrameMap.value ? computeClassStats(rawOverlayFrameMap.value) : null
+);
+
+function computeClassStats(map) {
+  if (!data.value || !map) return [];
   const numClasses = data.value.classes.length;
   const enabled = enabledClasses.value;
   const totalFrames = data.value.total_frames || 1;
-
   const counts = new Uint32Array(numClasses);
-
-  for (const [, entry] of frameMap.value) {
+  for (const [, entry] of map) {
     for (const det of entry.detections) {
-      const cid = det.class_id;
-      if (enabled.has(cid)) counts[cid]++;
+      if (enabled.has(det.class_id)) counts[det.class_id]++;
     }
   }
-
   return data.value.classes.map((name, idx) => ({
     name,
     count: counts[idx],
     pct: counts[idx] / totalFrames * 100,
   }));
-});
+}
 
 // Classes list display order — drives both left panel AND raster row order
 const displayedClasses = computed(() => {
@@ -953,33 +975,46 @@ function drawOverlay() {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, cw, ch);
 
-  const dets = currentDetections.value;
-  if (!dets.length) return;
-
   const d = data.value;
+  if (!d) return;
   const inferW = d.inference_width  || nW;
   const inferH = d.inference_height || nH;
 
-  // Compute object-fit:contain letterbox/pillarbox offset.
-  // The canvas covers the full wrapper; video content occupies a centred sub-rect.
+  // Letterbox/pillarbox offset (object-fit: contain).
   const videoAspect  = nW / nH;
   const canvasAspect = cw / ch;
   let contentW, contentH, offX, offY;
   if (videoAspect > canvasAspect) {
-    // Letterbox — black bars top & bottom
-    contentW = cw;
-    contentH = cw / videoAspect;
-    offX = 0;
-    offY = (ch - contentH) / 2;
+    contentW = cw; contentH = cw / videoAspect;
+    offX = 0;     offY = (ch - contentH) / 2;
   } else {
-    // Pillarbox — black bars left & right
-    contentH = ch;
-    contentW = ch * videoAspect;
-    offX = (cw - contentW) / 2;
-    offY = 0;
+    contentH = ch; contentW = ch * videoAspect;
+    offX = (cw - contentW) / 2; offY = 0;
   }
   const scaleX = contentW / inferW;
   const scaleY = contentH / inferH;
+
+  // Raw layer first (only when filter is primary): rejected detections drawn
+  // dim & dashed so they read as background context, not signal.
+  const rawDets = currentRawOverlayDetections.value;
+  if (rawDets && rawDets.length) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    for (const det of rawDets) {
+      if (!det.bbox) continue;
+      const [x1, y1, x2, y2] = det.bbox;
+      ctx.strokeStyle = CLASS_COLORS[det.class_id % CLASS_COLORS.length];
+      ctx.strokeRect(offX + x1 * scaleX, offY + y1 * scaleY,
+                     (x2 - x1) * scaleX, (y2 - y1) * scaleY);
+    }
+    ctx.restore();
+  }
+
+  // Primary layer: full opacity, solid stroke, labelled.
+  const dets = currentDetections.value;
+  if (!dets.length) return;
 
   ctx.lineWidth = 2.5;
   ctx.font = "bold 13px 'JetBrains Mono', monospace";
@@ -1179,16 +1214,6 @@ watch(customOrder, (order) => {
   }
 }, { deep: true });
 
-// Reload data when filter mode toggles between raw and filtered
-watch(filterMode, async (newMode, oldMode) => {
-  if (!activeCaseName.value || !data.value) return;
-  try {
-    await fetchFilteredView(activeCaseName.value, newMode);
-  } catch (err) {
-    filterMode.value = oldMode;  // revert toggle
-    alert(`Could not load ${newMode} detections: ${err.message}`);
-  }
-});
 
 // Raster (the per-class horizontal strip) carries the playhead, so it needs
 // to redraw on every frame change. The viewport box and the bars don't
@@ -1521,6 +1546,43 @@ onUnmounted(() => {
   font-size: 12px; color: var(--text-faint); letter-spacing: 2px;
   margin-bottom: 10px; text-transform: uppercase; display: block;
 }
+
+/* Filter info card — shown when a filtered overlay is loaded */
+.filter-info-card {
+  margin-bottom: 20px; padding: 10px 12px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.filter-info-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11px;
+}
+.filter-info-label {
+  color: var(--text-faint); letter-spacing: 2px; text-transform: uppercase;
+}
+.filter-info-method { color: var(--text); }
+.filter-info-row--params {
+  margin-top: 4px;
+  color: var(--text-faint); font-family: var(--font-mono);
+}
+.filter-info-legend {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 10px; color: var(--text-faint);
+}
+.legend-swatch {
+  display: inline-block; width: 14px; height: 3px; border-radius: 1px;
+  margin-right: 2px;
+}
+.legend-swatch--filtered {
+  background: var(--accent);
+}
+.legend-swatch--raw {
+  border-top: 2px dashed var(--text-faint); opacity: 0.6;
+}
+.legend-swatch + .legend-swatch { margin-left: 10px; }
+
 /* ── Main content ───────────────────────────────────────────────────────── */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .video-area {

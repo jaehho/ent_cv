@@ -1,9 +1,15 @@
-// Case data — owns the fetched detections, the video readiness flags, the
-// filter-mode toggle state, and the derived per-frame / per-part lookups.
+// Case data — owns the fetched detections, the video readiness flags, and
+// the derived per-frame / per-part lookups.
 //
-// Callers (currently just YOLOVisualizer.vue) are responsible for any
-// UI-state resets that should accompany a case load (enabled classes,
-// current frame, zoom, etc.), since those don't belong to this domain.
+// On case load this composable fetches BOTH raw detections (required) and
+// filtered detections (optional — exists only when postprocess was run via
+// CLI). When filtered is present, it becomes the "primary" view and the raw
+// results are exposed separately as `rawOverlayResults` so the overlay
+// canvas can draw them at low opacity beneath the primary boxes.
+//
+// Callers (currently just YOLOVisualizer.vue) handle any UI-state resets
+// that should accompany a case load (enabled classes, current frame, zoom,
+// etc.), since those don't belong to this domain.
 
 import { ref, shallowRef, computed } from "vue";
 
@@ -29,19 +35,33 @@ function buildFrameSetChunked(results, chunkSize = 15000) {
 }
 
 export function useCaseData() {
-  const data            = shallowRef(null);      // large object — shallowRef avoids deep reactivity
+  // `data` is the primary view: filtered detections when they exist on disk,
+  // raw detections otherwise. Everything in the UI that displays "the active
+  // view" — raster bars, sparklines, jump frames, class panel percentages,
+  // bounding-box overlay at full opacity — reads from this.
+  const data            = shallowRef(null);
+
+  // Raw results, populated only when filtered is the primary view. The
+  // overlay canvas draws these at low opacity beneath the primary boxes so
+  // you can see what the filter rejected. `null` when no filter file exists
+  // (no overlay needed; `data` already holds raw).
+  const rawOverlayResults = shallowRef(null);
+
   const dataReady       = ref(false);
   const videoSrc        = ref(null);
   const videoReady      = ref(false);
   const activeCaseName  = ref(null);
-  const filterMode      = ref("raw");            // 'raw' | 'filtered'
-  const filterInfo      = ref(null);             // _filter block from filtered_detections.json
-  const rawFrameSet     = shallowRef(null);      // Set<number> of raw frame indices
-  const filteredSummary = ref(null);             // class_time_sec etc from filtered_summary.json
+  const filterInfo      = ref(null);             // _filter block from filtered_detections.json (null when no filter)
+  const rawFrameSet     = shallowRef(null);      // Set<number> of raw frame indices (drives "Changed" jump filter)
+  const filteredSummary = ref(null);             // class_time_sec etc from filtered_summary.json (null when no filter)
 
   const isLoading = computed(() => !dataReady.value || !videoReady.value);
 
-  // Sparse lookup: frame number → result entry.
+  // True when a filtered file was loaded (i.e. there's something to layer
+  // beneath the primary view on the overlay canvas).
+  const hasFilteredOverlay = computed(() => rawOverlayResults.value !== null);
+
+  // Sparse lookup: frame number → result entry, on the primary view.
   const frameMap = computed(() => {
     if (!data.value) return new Map();
     return new Map(data.value.results.map(r => [r.frame, r]));
@@ -52,7 +72,7 @@ export function useCaseData() {
   const partStartTs = computed(() => {
     if (!data.value) return new Map();
     const fps = data.value.fps;
-    const map = new Map(); // source path → start timestamp
+    const map = new Map();
     for (const r of data.value.results) {
       if (!map.has(r.source)) map.set(r.source, r.frame / fps);
     }
@@ -62,7 +82,7 @@ export function useCaseData() {
   // Per-part start frame number (global frame index of the first frame in each part).
   const partStartFrame = computed(() => {
     if (!data.value) return new Map();
-    const map = new Map(); // source path → start frame number
+    const map = new Map();
     for (const r of data.value.results) {
       if (!map.has(r.source)) map.set(r.source, r.frame);
     }
@@ -70,74 +90,71 @@ export function useCaseData() {
   });
 
   /**
-   * Fetch a case's raw detections, reset filter state, kick off the
-   * raw-frame-set build off the main render thread. Returns the parsed
-   * payload so the caller can do its own post-load setup. Throws on
-   * failure; caller should surface to the user.
+   * Fetch a case. Always fetches raw detections; attempts filtered + summary
+   * in parallel and silently falls back to raw-only when no filtered file
+   * exists on disk. Throws if even the raw fetch fails; caller surfaces.
    *
-   * `isPredictionMode` means the UI is showing pre-rendered prediction
-   * frames (no <video> element), so video readiness is granted immediately.
+   * `isPredictionMode` means the UI shows pre-rendered prediction frames
+   * (no <video> element), so video readiness is granted immediately.
    */
   async function fetchCase(caseName, { isPredictionMode = false } = {}) {
     dataReady.value = false;
     videoReady.value = false;
 
-    const res = await fetch(`/api/cases/${caseName}/detections/`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const parsed = await res.json();
+    const [rawRes, filtRes] = await Promise.all([
+      fetch(`/api/cases/${caseName}/detections/`),
+      fetch(`/api/cases/${caseName}/detections/?mode=filtered`),
+    ]);
+    if (!rawRes.ok) throw new Error(`HTTP ${rawRes.status}`);
+    const rawPayload = await rawRes.json();
+    const filtPayload = filtRes.ok ? await filtRes.json() : null;
 
-    // Clear video src BEFORE updating data so the URL watcher fires
-    // with a clean slate. Setting data first triggers the watcher early;
-    // then nulling videoSrc aborts the load and loadedmetadata never fires,
+    // Filter summary in parallel (only meaningful when filtered exists).
+    let summaryPayload = null;
+    if (filtPayload) {
+      try {
+        const sumRes = await fetch(`/api/cases/${caseName}/filtered-summary/`);
+        if (sumRes.ok) summaryPayload = await sumRes.json();
+      } catch { /* summary is optional, ignore */ }
+    }
+
+    // Clear video src BEFORE swapping data so the URL watcher fires with a
+    // clean slate. Setting data first triggers the watcher early; then
+    // nulling videoSrc aborts the load and loadedmetadata never fires,
     // leaving videoReady stuck at false and the loading screen stuck forever.
     videoSrc.value = null;
 
-    // Deep-freeze to guarantee Vue's proxy skips traversing large nested arrays.
-    data.value = Object.freeze(parsed);
+    // Choose primary view: filtered if it loaded, otherwise raw.
+    // Object.freeze tells Vue's proxy to skip traversing nested arrays.
+    if (filtPayload) {
+      data.value = Object.freeze(filtPayload);
+      rawOverlayResults.value = Object.freeze(rawPayload.results);
+      filterInfo.value = filtPayload._filter ?? null;
+    } else {
+      data.value = Object.freeze(rawPayload);
+      rawOverlayResults.value = null;
+      filterInfo.value = null;
+    }
     dataReady.value = true;
     if (isPredictionMode) videoReady.value = true;
 
-    filteredSummary.value = null;
-    filterInfo.value = null;
-    filterMode.value = "raw";
+    filteredSummary.value = summaryPayload;
     activeCaseName.value = caseName;
 
-    buildFrameSetChunked(parsed.results).then((set) => {
+    buildFrameSetChunked(rawPayload.results).then((set) => {
       rawFrameSet.value = set;
     });
 
-    return parsed;
-  }
-
-  /**
-   * Reload detections in raw or filtered mode (for the View toggle).
-   * Pulls filtered_summary.json alongside when entering filtered mode.
-   * Throws on HTTP failure so the caller can revert the toggle.
-   */
-  async function fetchFilteredView(caseName, mode) {
-    const url = `/api/cases/${caseName}/detections/${mode === "filtered" ? "?mode=filtered" : ""}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status} — no filtered data yet (run filter first)`);
-    const parsed = await res.json();
-    data.value = parsed;
-    filterInfo.value = parsed._filter ?? null;
-    if (mode === "raw") {
-      rawFrameSet.value = new Set(parsed.results.map(r => r.frame));
-    } else {
-      try {
-        const sumRes = await fetch(`/api/cases/${caseName}/filtered-summary/`);
-        if (sumRes.ok) filteredSummary.value = await sumRes.json();
-      } catch { /* leave previous summary in place */ }
-    }
+    return data.value;
   }
 
   return {
     // state
-    data, dataReady, videoSrc, videoReady, activeCaseName,
-    filterMode, filterInfo, rawFrameSet, filteredSummary, isLoading,
+    data, rawOverlayResults, dataReady, videoSrc, videoReady, activeCaseName,
+    filterInfo, rawFrameSet, filteredSummary, isLoading, hasFilteredOverlay,
     // derived
     frameMap, partStartTs, partStartFrame,
     // actions
-    fetchCase, fetchFilteredView,
+    fetchCase,
   };
 }
