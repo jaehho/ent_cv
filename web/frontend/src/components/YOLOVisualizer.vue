@@ -815,24 +815,22 @@ function goBack() {
   router.push({ name: "cases" });
 }
 
-function seekToFrame(frame) {
+// Sync the <video> element's currentTime to the JS currentFrame ref.
+// Each call asks the browser to seek (decode keyframes + intermediate frames),
+// which is the bottleneck during a drag — so we skip it while the user is
+// actively scrubbing and call it once on mouseup instead.
+function syncVideoTime() {
+  if (!videoRef.value || !videoSrc.value || !data.value) return;
+  const part = currentPart.value;
+  if (!part) return;
+  videoRef.value.currentTime = (currentFrame.value - part.startFrame) / data.value.fps;
+}
+
+function seekToFrame(frame, { syncVideo = true } = {}) {
   if (!data.value) return;
-  // Capture the current part's start timestamp BEFORE updating currentFrame,
-  // because currentPartStartTs depends on currentFrame (via frameMap lookup).
-  const prevPartStartTs = currentPartStartTs.value;
   currentFrame.value = frame;
-  scheduleDraws(1);  // Immediately redraw overlay with new frame's detections
-  if (videoRef.value && videoSrc.value) {
-    const entry = frameMap.value.get(frame);
-    const fps = data.value.fps;
-    if (entry) {
-      const startTs = partStartTs.value.get(entry.source) ?? 0;
-      videoRef.value.currentTime = entry.frame / fps - startTs;
-    } else {
-      // Frame has no detection — seek within the same part using captured start ts
-      videoRef.value.currentTime = frame / fps - prevPartStartTs;
-    }
-  }
+  scheduleDraws(1);  // overlay always redraws for instant visual feedback
+  if (syncVideo) syncVideoTime();
 }
 
 function togglePlay() {
@@ -1370,7 +1368,10 @@ function handleRasterClick(e) {
 function handleRasterMouseMove(e) {
   const frame = getFrameFromMouse(e, rasterRef.value);
   hoveredFrame.value = frame;
-  if (isDraggingTimeline.value && frame !== null) seekToFrame(frame);
+  // While the user is actively dragging, skip the video seek — only update
+  // the JS frame + overlay. The final video.currentTime write happens once
+  // in onGlobalMouseUp when the drag ends.
+  if (isDraggingTimeline.value && frame !== null) seekToFrame(frame, { syncVideo: false });
 }
 
 function handleRasterMouseDown(e) {
@@ -1420,8 +1421,12 @@ function onGlobalMouseMove(e) {
 }
 
 function onGlobalMouseUp() {
+  const wasDraggingTimeline = isDraggingTimeline.value;
   isPanningRef.value = false;
   isDraggingTimeline.value = false;
+  // Drag finished — now actually seek the video to where the user landed.
+  // One decode-and-render instead of dozens during the drag.
+  if (wasDraggingTimeline) syncVideoTime();
 }
 
 function onKeyDown(e) {
