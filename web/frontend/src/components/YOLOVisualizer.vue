@@ -170,13 +170,13 @@
             </div>
           </div>
 
-          <div style="flex:1;position:relative;overflow:hidden;">
+          <div ref="rasterWrapRef" style="flex:1;position:relative;overflow:hidden;">
             <canvas
               ref="rasterRef"
-              :style="{ 
-                width: '100%', 
-                height: rasterHeight + 'px', 
-                display: 'block', 
+              :style="{
+                width: '100%',
+                height: rasterHeight + 'px',
+                display: 'block',
                 cursor: 'crosshair',
                 touchAction: 'none',
                 overscrollBehavior: 'none'
@@ -187,6 +187,12 @@
               @mouseleave="hoveredFrame = null"
               @wheel.passive="handleWheel"
             />
+            <!-- Playhead drawn as a transform-only div so currentFrame updates don't repaint the raster canvas -->
+            <div
+              v-if="playheadX >= 0"
+              class="raster-playhead"
+              :style="{ transform: `translateX(${playheadX}px)` }"
+            ></div>
             <div v-if="hoveredFrame !== null" :style="{
               position: 'absolute',
               left: hoverX + 'px',
@@ -380,6 +386,7 @@ const rightPanelWidth   = ref(280);
 const matrixContainerRef   = ref(null)
 const matrixContainerWidth = ref(0)
 let _matrixResizeObserver  = null
+let _rasterResizeObserver  = null   // keeps rasterWidth in sync with the raster wrapper's CSS px width
 const rasterHeight      = ref(200);   // px height of raster canvas
 
 // ── Jump-filter state ─────────────────────────────────────────────────────
@@ -387,10 +394,12 @@ const jumpFilter        = ref('none'); // 'none'|'any'|'class'|'onset'|'changed'
 const jumpFilterClassIds = ref(new Set()); // class indices when jumpFilter==='class'
 
 // ── Refs ───────────────────────────────────────────────────────────────────
-const videoRef    = ref(null);
-const overlayRef  = ref(null);
-const rasterRef   = ref(null);
-const minimapRef  = ref(null);
+const videoRef     = ref(null);
+const overlayRef   = ref(null);
+const rasterRef    = ref(null);
+const rasterWrapRef = ref(null);
+const rasterWidth  = ref(0);   // CSS px, kept in sync via ResizeObserver
+const minimapRef   = ref(null);
 const animFrameRef = ref(null);
 const isPanningRef = ref(false);
 const panStartRef  = ref({ x: 0, offset: 0 });
@@ -416,6 +425,22 @@ const currentTime = computed(() => {
   const fps = data.value?.fps;
   if (!fps || isNaN(currentFrame.value)) return 0;
   return currentFrame.value / fps;
+});
+
+// Playhead position in CSS pixels, or -1 when out of view. Rendered as a
+// transform on a sibling div so that currentFrame changes during playback /
+// scrub move a single GPU-composited line instead of repainting the raster.
+const playheadX = computed(() => {
+  if (!data.value || rasterWidth.value <= 0) return -1;
+  const totalFrames = data.value.total_frames;
+  const visibleFraction = 1 / zoomLevel.value;
+  const startFrame = Math.max(0, Math.floor(panOffset.value * totalFrames));
+  const endFrame = Math.min(Math.ceil((panOffset.value + visibleFraction) * totalFrames), totalFrames);
+  const visibleFrames = endFrame - startFrame;
+  if (visibleFrames <= 0) return -1;
+  const x = (currentFrame.value - startFrame) * (rasterWidth.value / visibleFrames);
+  if (x < 0 || x > rasterWidth.value) return -1;
+  return x;
 });
 
 // Pre-sorted parts table — built once per data change, used for O(log n)
@@ -969,10 +994,16 @@ function drawOverlay() {
 
   const dpr = window.devicePixelRatio || 1;
   const cw = canvas.clientWidth, ch = canvas.clientHeight;
-  canvas.width  = cw * dpr;
-  canvas.height = ch * dpr;
+  // Only resize on actual change: assigning canvas.width/height reallocates
+  // the GPU backing store and wipes the context state, which is what made
+  // per-tick overlay redraws so expensive during playback.
+  const targetW = cw * dpr, targetH = ch * dpr;
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width  = targetW;
+    canvas.height = targetH;
+  }
   const ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);   // identity-scale; replaces the implicit reset from resize
   ctx.clearRect(0, 0, cw, ch);
 
   const d = data.value;
@@ -1053,9 +1084,12 @@ function drawRaster() {
   const ctx = canvas.getContext("2d", { alpha: false }); // Opt: Disable alpha composition if canvas is opaque
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.scale(dpr, dpr);
+  const targetW = rect.width * dpr, targetH = rect.height * dpr;
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW;
+    canvas.height = targetH;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const W = rect.width, H = rect.height;
   const numClasses = d.classes.length;
   const rowH = H / numClasses;
@@ -1103,16 +1137,8 @@ function drawRaster() {
     }
   }
 
-  // Playhead
-  const playheadX = (currentFrame.value - startFrame) * pxPerFrame;
-  if (playheadX >= 0 && playheadX <= W) {
-    ctx.strokeStyle = _canvas.marker;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = _canvas.marker;
-    ctx.shadowBlur = 6;
-    ctx.beginPath(); ctx.moveTo(playheadX, 0); ctx.lineTo(playheadX, H); ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
+  // Playhead is a sibling DOM element now — see template <div class="raster-playhead">.
+  // Keeping it out of the canvas means currentFrame changes never repaint the raster.
 
   // Changed-frame markers (filtered mode) — 2-px strip at raster bottom
   const cf = changedFrames.value;
@@ -1136,9 +1162,12 @@ function drawMinimap() {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.scale(dpr, dpr);
+  const targetW = rect.width * dpr, targetH = rect.height * dpr;
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW;
+    canvas.height = targetH;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const W = rect.width, H = rect.height;
   const numClasses = d.classes.length;
   const rowH = H / numClasses;
@@ -1215,11 +1244,11 @@ watch(customOrder, (order) => {
 }, { deep: true });
 
 
-// Raster (the per-class horizontal strip) carries the playhead, so it needs
-// to redraw on every frame change. The viewport box and the bars don't
-// change with currentFrame, so the raster is the only dependent here.
+// Raster repaints only when something on it actually changed. The playhead
+// lives in a sibling div (see `playheadX` + `.raster-playhead`), so currentFrame
+// is intentionally NOT a dep here — that's the whole point of this refactor.
 watch(
-  [filteredSparseMap, changedFrames, () => currentFrame.value, () => zoomLevel.value, () => panOffset.value],
+  [filteredSparseMap, changedFrames, () => zoomLevel.value, () => panOffset.value],
   () => scheduleDraws(2),  // raster
   { flush: "post" }
 );
@@ -1249,6 +1278,18 @@ watch(matrixContainerRef, (el) => {
     _matrixResizeObserver.observe(el)
   }
 })
+
+// Keep rasterWidth in sync with the raster wrapper. Needed so playheadX
+// stays correct on resize without us repainting the raster canvas.
+watch(rasterWrapRef, (el) => {
+  if (el && !_rasterResizeObserver) {
+    rasterWidth.value = el.clientWidth;
+    _rasterResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) rasterWidth.value = entry.contentRect.width;
+    });
+    _rasterResizeObserver.observe(el);
+  }
+});
 
 // ── Video part switching ───────────────────────────────────────────────────
 // Flag set by the ended handler so the URL watcher knows to auto-play the next part
@@ -1511,6 +1552,10 @@ onUnmounted(() => {
     _matrixResizeObserver.disconnect()
     _matrixResizeObserver = null
   }
+  if (_rasterResizeObserver) {
+    _rasterResizeObserver.disconnect();
+    _rasterResizeObserver = null;
+  }
 });
 </script>
 
@@ -1636,6 +1681,14 @@ onUnmounted(() => {
   font-size: 11px; border-bottom: 1px solid var(--bg-hover);
 }
 .raster-label-bar { width: 4px; border-radius: 2px; margin-right: 6px; flex-shrink: 0; }
+/* Transform-positioned playhead — kept off the canvas so currentFrame updates
+   compose on the GPU instead of triggering a raster redraw. */
+.raster-playhead {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 2px;
+  background: #fff; box-shadow: 0 0 6px #fff;
+  pointer-events: none;
+  will-change: transform;
+}
 .hover-tooltip {
   position: absolute; top: 4px; right: 4px; padding: 5px 12px;
   background: rgba(0,0,0,0.85); border-radius: 4px; font-size: 13px;

@@ -62,6 +62,7 @@ HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
   save: vi.fn(),
   restore: vi.fn(),
   scale: vi.fn(),
+  setTransform: vi.fn(),
   translate: vi.fn(),
   measureText: vi.fn(() => ({ width: 50 })),
   createImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
