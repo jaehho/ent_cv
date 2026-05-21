@@ -10,21 +10,24 @@
       <span v-if="username" class="username">{{ username }}</span>
       <button class="hdr-btn hdr-btn--small" @click="emit('logout')">Sign Out</button>
       <a
-        :href="`/api/cases/${caseId}/csv/${filterMode === 'filtered' ? '?mode=filtered' : ''}`"
+        :href="`/api/cases/${caseId}/csv/`"
         class="hdr-btn"
         download
+        title="Download raw detections as CSV"
       >
         <Download :size="14" :stroke-width="2" />
         <span>CSV</span>
       </a>
-      <div class="mode-toggle">
+      <!-- Mode toggle only renders when both options are actually available — if
+           the case has no pre-rendered prediction frames there's nothing to toggle
+           against and a single button would just look like a dead control. -->
+      <div v-if="hasPredictionFrames" class="mode-toggle">
         <button
           class="mode-btn"
           :class="{ 'mode-btn--active': videoMode === 'raw' }"
           @click="emit('update:videoMode', 'raw')"
         >Raw + Overlay</button>
         <button
-          v-if="hasPredictionFrames"
           class="mode-btn"
           :class="{ 'mode-btn--active': videoMode === 'prediction' }"
           @click="emit('update:videoMode', 'prediction')"
@@ -40,7 +43,6 @@ import { ArrowLeft, Download } from "lucide-vue-next";
 defineProps({
   caseId:              { type: String, required: true },
   username:            { type: String, default: "" },
-  filterMode:          { type: String, default: "raw" },
   videoMode:           { type: String, default: "raw" },
   hasPredictionFrames: { type: Boolean, default: false },
 });

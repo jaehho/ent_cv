@@ -53,10 +53,10 @@
           <div v-else-if="classStats[item.idx]" class="class-stat">
             {{ classStats[item.idx].pct.toFixed(0) }}% frames
             <span
-              v-if="rawClassStats && rawClassStats[item.idx]"
+              v-if="filteredClassStats && filteredClassStats[item.idx]"
               class="class-stat-secondary"
-              title="Raw detections before filtering"
-            >(raw: {{ rawClassStats[item.idx].pct.toFixed(0) }}%)</span>
+              title="Filtered detections kept after postprocessing"
+            >(filtered: {{ filteredClassStats[item.idx].pct.toFixed(0) }}%)</span>
           </div>
           <div
             v-if="filteredSummary?.onset_count?.[item.cls] != null"
@@ -106,9 +106,9 @@ const props = defineProps({
   displayedClasses:  { type: Array,   required: true },
   enabledClasses:    { type: Object,  required: true },  // Set<number>
   classStats:        { type: Array,   required: true },
-  // Secondary stats from the raw detections, only when filtered is the
-  // primary view. Rendered as "(raw: N%)" beside the primary percentage.
-  rawClassStats:     { type: Array,   default: null },
+  // Secondary stats from the filtered annotation layer, only when a filter
+  // file exists. Rendered as "(filtered: N%)" beside the primary (raw) percentage.
+  filteredClassStats: { type: Array,  default: null },
   sparklines:        { type: Object,  required: true },
   filteredSummary:   { type: Object,  default: null },
   classSortMode:     { type: String,  required: true },

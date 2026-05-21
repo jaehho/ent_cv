@@ -3,9 +3,10 @@
 //
 // On case load this composable fetches BOTH raw detections (required) and
 // filtered detections (optional — exists only when postprocess was run via
-// CLI). When filtered is present, it becomes the "primary" view and the raw
-// results are exposed separately as `rawOverlayResults` so the overlay
-// canvas can draw them at low opacity beneath the primary boxes.
+// CLI). Raw is ALWAYS the primary view — it's the model's actual output and
+// what the user is most interested in seeing. Filtered, when present, is
+// layered on as an annotation indicating which raw detections survived
+// postprocessing (drawn as a thin teal inset stroke by the overlay canvas).
 //
 // Callers (currently just YOLOVisualizer.vue) handle any UI-state resets
 // that should accompany a case load (enabled classes, current frame, zoom,
@@ -35,33 +36,31 @@ function buildFrameSetChunked(results, chunkSize = 15000) {
 }
 
 export function useCaseData() {
-  // `data` is the primary view: filtered detections when they exist on disk,
-  // raw detections otherwise. Everything in the UI that displays "the active
-  // view" — raster bars, sparklines, jump frames, class panel percentages,
-  // bounding-box overlay at full opacity — reads from this.
+  // `data` is the primary view: raw detections, always. The UI's bars, stats,
+  // jump frames, class percentages, and labeled bounding boxes all read from
+  // here, because the page is about visualizing the model's behavior.
   const data            = shallowRef(null);
 
-  // Raw results, populated only when filtered is the primary view. The
-  // overlay canvas draws these at low opacity beneath the primary boxes so
-  // you can see what the filter rejected. `null` when no filter file exists
-  // (no overlay needed; `data` already holds raw).
-  const rawOverlayResults = shallowRef(null);
+  // Filtered results, populated only when filtered_detections.json exists on
+  // disk. Drawn as a small teal inset stroke on each filtered bbox to mark
+  // "kept by filter". `null` when no filter file exists (nothing to annotate).
+  const filteredOverlayResults = shallowRef(null);
 
   const dataReady       = ref(false);
   const videoSrc        = ref(null);
   const videoReady      = ref(false);
   const activeCaseName  = ref(null);
   const filterInfo      = ref(null);             // _filter block from filtered_detections.json (null when no filter)
-  const rawFrameSet     = shallowRef(null);      // Set<number> of raw frame indices (drives "Changed" jump filter)
+  const filteredFrameSet = shallowRef(null);     // Set<number> of frames present in the filtered file (drives "Changed" jump filter)
   const filteredSummary = ref(null);             // class_time_sec etc from filtered_summary.json (null when no filter)
 
   const isLoading = computed(() => !dataReady.value || !videoReady.value);
 
-  // True when a filtered file was loaded (i.e. there's something to layer
-  // beneath the primary view on the overlay canvas).
-  const hasFilteredOverlay = computed(() => rawOverlayResults.value !== null);
+  // True when a filtered file was loaded (i.e. there's something to annotate
+  // raw boxes with on the overlay canvas).
+  const hasFilteredOverlay = computed(() => filteredOverlayResults.value !== null);
 
-  // Sparse lookup: frame number → result entry, on the primary view.
+  // Sparse lookup: frame number → result entry, on the primary (raw) view.
   const frameMap = computed(() => {
     if (!data.value) return new Map();
     return new Map(data.value.results.map(r => [r.frame, r]));
@@ -124,34 +123,34 @@ export function useCaseData() {
     // leaving videoReady stuck at false and the loading screen stuck forever.
     videoSrc.value = null;
 
-    // Choose primary view: filtered if it loaded, otherwise raw.
+    // Raw is ALWAYS primary. Filtered, when present, is the annotation layer.
     // Object.freeze tells Vue's proxy to skip traversing nested arrays.
-    if (filtPayload) {
-      data.value = Object.freeze(filtPayload);
-      rawOverlayResults.value = Object.freeze(rawPayload.results);
-      filterInfo.value = filtPayload._filter ?? null;
-    } else {
-      data.value = Object.freeze(rawPayload);
-      rawOverlayResults.value = null;
-      filterInfo.value = null;
-    }
+    data.value = Object.freeze(rawPayload);
+    filteredOverlayResults.value = filtPayload ? Object.freeze(filtPayload.results) : null;
+    filterInfo.value = filtPayload?._filter ?? null;
     dataReady.value = true;
     if (isPredictionMode) videoReady.value = true;
 
     filteredSummary.value = summaryPayload;
     activeCaseName.value = caseName;
 
-    buildFrameSetChunked(rawPayload.results).then((set) => {
-      rawFrameSet.value = set;
-    });
+    // Frame set is over the filtered side now — `changedFrames` over in the
+    // visualizer uses it to mark frames where raw and filtered disagree.
+    if (filtPayload) {
+      buildFrameSetChunked(filtPayload.results).then((set) => {
+        filteredFrameSet.value = set;
+      });
+    } else {
+      filteredFrameSet.value = null;
+    }
 
     return data.value;
   }
 
   return {
     // state
-    data, rawOverlayResults, dataReady, videoSrc, videoReady, activeCaseName,
-    filterInfo, rawFrameSet, filteredSummary, isLoading, hasFilteredOverlay,
+    data, filteredOverlayResults, dataReady, videoSrc, videoReady, activeCaseName,
+    filterInfo, filteredFrameSet, filteredSummary, isLoading, hasFilteredOverlay,
     // derived
     frameMap, partStartTs, partStartFrame,
     // actions

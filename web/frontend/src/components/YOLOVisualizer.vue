@@ -20,7 +20,6 @@
     <AppHeader
       :case-id="props.id"
       :username="username"
-      :filter-mode="hasFilteredOverlay ? 'filtered' : 'raw'"
       v-model:video-mode="videoMode"
       :has-prediction-frames="!!data?.has_prediction_frames"
       @back="goBack"
@@ -30,51 +29,65 @@
     <div class="body-row">
 
       <!-- ── Left Panel ────────────────────────────────────────────────── -->
-      <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
+      <div
+        class="left-panel"
+        :class="{ 'side-panel--collapsed': leftPanelCollapsed }"
+        :style="{ width: (leftPanelCollapsed ? 36 : leftPanelWidth) + 'px' }"
+      >
+        <button
+          class="panel-toggle"
+          @click="leftPanelCollapsed = !leftPanelCollapsed"
+          :title="leftPanelCollapsed ? 'Show controls' : 'Hide controls'"
+          :aria-label="leftPanelCollapsed ? 'Show controls' : 'Hide controls'"
+        >
+          <ChevronRight v-if="leftPanelCollapsed" :size="14" :stroke-width="2" />
+          <ChevronLeft  v-else                    :size="14" :stroke-width="2" />
+        </button>
+        <template v-if="!leftPanelCollapsed">
+          <PlayerControls
+            :is-playing="isPlaying"
+            :playback-rate="playbackRate"
+            :current-frame="currentFrame"
+            :current-time="currentTime"
+            :fps="data?.fps"
+            :total-frames="data?.total_frames ?? 0"
+            v-model:jump-filter="jumpFilter"
+            :jump-filter-class-ids="jumpFilterClassIds"
+            :jump-frame-count="jumpFrames?.length ?? null"
+            :changed-frames-available="!!changedFrames"
+            :displayed-classes="displayedClasses"
+            @toggle-play="togglePlay"
+            @set-rate="setRate"
+            @seek-prev="seekFiltered(-1)"
+            @seek-next="seekFiltered(1)"
+            @seek-frame="seekToFrame"
+            @toggle-jump-class="toggleJumpClass"
+          />
 
-        <PlayerControls
-          :is-playing="isPlaying"
-          :playback-rate="playbackRate"
-          :current-frame="currentFrame"
-          :current-time="currentTime"
-          :fps="data?.fps"
-          :total-frames="data?.total_frames ?? 0"
-          v-model:jump-filter="jumpFilter"
-          :jump-filter-class-ids="jumpFilterClassIds"
-          :jump-frame-count="jumpFrames?.length ?? null"
-          :changed-frames-available="!!changedFrames"
-          :displayed-classes="displayedClasses"
-          @toggle-play="togglePlay"
-          @set-rate="setRate"
-          @seek-prev="seekFiltered(-1)"
-          @seek-next="seekFiltered(1)"
-          @seek-frame="seekToFrame"
-          @toggle-jump-class="toggleJumpClass"
-        />
-
-        <!-- Filter info: shown when filtered detections are loaded (raw + filtered both on screen) -->
-        <div v-if="hasFilteredOverlay && filterInfo" class="filter-info-card">
-          <div class="filter-info-row">
-            <span class="filter-info-label">Filter</span>
-            <span class="filter-info-method">{{ filterInfo.method.replace(/_/g, ' ') }}</span>
+          <!-- Filter info: shown when filtered detections are loaded (raw + filtered both on screen) -->
+          <div v-if="hasFilteredOverlay && filterInfo" class="filter-info-card">
+            <div class="filter-info-row">
+              <span class="filter-info-label">Filter</span>
+              <span class="filter-info-method">{{ filterInfo.method.replace(/_/g, ' ') }}</span>
+            </div>
+            <div class="filter-info-row filter-info-row--params">
+              <template v-if="filterInfo.min_duration_sec != null">
+                min {{ filterInfo.min_duration_sec }}s · gap {{ filterInfo.gap_fill_sec }}s
+              </template>
+              <template v-else-if="filterInfo.window_sec != null">
+                window {{ filterInfo.window_sec }}s · thr {{ filterInfo.vote_threshold }}
+              </template>
+            </div>
           </div>
-          <div class="filter-info-row filter-info-row--params">
-            <template v-if="filterInfo.min_duration_sec != null">
-              min {{ filterInfo.min_duration_sec }}s · gap {{ filterInfo.gap_fill_sec }}s
-            </template>
-            <template v-else-if="filterInfo.window_sec != null">
-              window {{ filterInfo.window_sec }}s · thr {{ filterInfo.vote_threshold }}
-            </template>
-          </div>
-          <div class="filter-info-legend">
-            <span class="legend-swatch legend-swatch--filtered"></span>kept
-            <span class="legend-swatch legend-swatch--raw"></span>rejected (raw)
-          </div>
-        </div>
+        </template>
       </div>
 
-      <!-- Left resize handle -->
-      <div class="resize-handle resize-handle--col" @mousedown="startResize('left', $event)"></div>
+      <!-- Left resize handle: only meaningful when panel is expanded. -->
+      <div
+        v-if="!leftPanelCollapsed"
+        class="resize-handle resize-handle--col"
+        @mousedown="startResize('left', $event)"
+      ></div>
 
       <!-- ── Main Content ───────────────────────────────────────────────── -->
       <div class="main-content">
@@ -93,7 +106,8 @@
             />
             <div v-else style="text-align:center;padding:20px;color:var(--text-faint)">No prediction frame</div>
           </div>
-          <!-- Raw mode: video element + canvas overlay -->
+          <!-- Raw mode: video element + canvas overlay drawing raw bboxes on top.
+               (Raw-vs-filtered comparison overlay parked 2026-05-20 — see DESIGN_LOG.md.) -->
           <div v-else-if="videoSrc" class="video-wrapper">
             <video
               ref="videoRef"
@@ -102,7 +116,6 @@
               preload="auto"
               muted
             />
-            <!-- Canvas overlay only shown in raw mode —annotations are baked into prediction videos -->
             <canvas
               v-if="videoMode === 'raw'"
               ref="overlayRef"
@@ -229,17 +242,42 @@
         </div>
       </div>
 
-      <!-- Resize handle: main ↔ right panel -->
-      <div class="resize-handle resize-handle--col" @mousedown="startResize('right', $event)"></div>
+      <!-- Resize handle: only meaningful when right panel is expanded. -->
+      <div
+        v-if="!rightPanelCollapsed"
+        class="resize-handle resize-handle--col"
+        @mousedown="startResize('right', $event)"
+      ></div>
 
       <!-- ── Right Stats Panel ──────────────────────────────────────────── -->
-      <div class="right-panel" ref="matrixContainerRef" :style="{ display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '0', width: rightPanelWidth + 'px' }">
+      <div
+        class="right-panel"
+        :class="{ 'side-panel--collapsed': rightPanelCollapsed }"
+        ref="matrixContainerRef"
+        :style="{
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          padding: 0,
+          width: (rightPanelCollapsed ? 36 : rightPanelWidth) + 'px',
+        }"
+      >
+        <button
+          class="panel-toggle"
+          @click="rightPanelCollapsed = !rightPanelCollapsed"
+          :title="rightPanelCollapsed ? 'Show class panel' : 'Hide class panel'"
+          :aria-label="rightPanelCollapsed ? 'Show class panel' : 'Hide class panel'"
+        >
+          <ChevronLeft  v-if="rightPanelCollapsed" :size="14" :stroke-width="2" />
+          <ChevronRight v-else                     :size="14" :stroke-width="2" />
+        </button>
+        <template v-if="!rightPanelCollapsed">
 
         <ClassPanel
           :displayed-classes="displayedClasses"
           :enabled-classes="enabledClasses"
           :class-stats="classStats"
-          :raw-class-stats="rawOverlayClassStats"
+          :filtered-class-stats="filteredClassStats"
           :sparklines="sparklines"
           :filtered-summary="filteredSummary"
           v-model:class-sort-mode="classSortMode"
@@ -299,6 +337,7 @@
             </div>
           </div>
         </div>
+        </template>
 
       </div>
 
@@ -311,6 +350,7 @@ import {
   ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick,
 } from "vue";
 import { useRouter } from "vue-router";
+import { ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { CLASS_COLORS, formatTime } from "../utils/index.js";
 import { useCaseData } from "../composables/useCaseData.js";
 import AppHeader from "./AppHeader.vue";
@@ -345,12 +385,13 @@ const CLASS_COLORS_RGB = CLASS_COLORS.map(hex => ({
 }));
 
 // ── Case data (composable) ────────────────────────────────────────────────
-// `data` is the primary view (filtered if disk has it, raw otherwise).
-// `rawOverlayResults` is raw, populated only when filtered is primary — the
-// overlay canvas draws it at low opacity beneath the primary boxes.
+// `data` is always raw — the model's actual output and what the page is
+// fundamentally visualizing. `filteredOverlayResults` is the kept-annotation
+// layer, populated only when a filter file exists on disk; the overlay canvas
+// draws those as a thin teal inset stroke inside the matching raw box.
 const {
-  data, rawOverlayResults, dataReady, videoSrc, videoReady, activeCaseName,
-  filterInfo, rawFrameSet, filteredSummary, isLoading, hasFilteredOverlay,
+  data, filteredOverlayResults, dataReady, videoSrc, videoReady, activeCaseName,
+  filterInfo, filteredFrameSet, filteredSummary, isLoading, hasFilteredOverlay,
   frameMap, partStartTs, partStartFrame,
   fetchCase,
 } = useCaseData();
@@ -383,6 +424,13 @@ const draggingClassIdx  = ref(null);  // currently dragging class index
 // ── Panel resizing state ──────────────────────────────────────────────────
 const leftPanelWidth    = ref(280);
 const rightPanelWidth   = ref(280);
+// Collapsed = a 36px icon strip with only the toggle chevron visible. Useful
+// in compare mode where the user wants maximum vertical real estate for the
+// two video panes.
+const leftPanelCollapsed  = ref(localStorage.getItem('yolo-leftPanelCollapsed')  === '1');
+const rightPanelCollapsed = ref(localStorage.getItem('yolo-rightPanelCollapsed') === '1');
+watch(leftPanelCollapsed,  (v) => localStorage.setItem('yolo-leftPanelCollapsed',  v ? '1' : '0'));
+watch(rightPanelCollapsed, (v) => localStorage.setItem('yolo-rightPanelCollapsed', v ? '1' : '0'));
 const matrixContainerRef   = ref(null)
 const matrixContainerWidth = ref(0)
 let _matrixResizeObserver  = null
@@ -563,16 +611,17 @@ const filteredSparseMap = computed(() => {
   return result;
 });
 
-// Frames changed by filtering: present in raw but absent in filtered, or vice-versa.
-// Drives the change-strip in the raster/minimap. Null when there's no filtered
-// overlay to compare against.
+// Frames where raw and filtered disagree: detection in raw with none in filtered
+// (rejection) or vice versa. Drives the change-strip in the raster/minimap.
+// Null when there's no filtered overlay to compare against. With raw as primary,
+// frameMap is the raw side and filteredFrameSet is the filter side.
 const changedFrames = computed(() => {
-  if (!hasFilteredOverlay.value || !rawFrameSet.value || !data.value) return null;
-  const rawSet = rawFrameSet.value;
-  const filtSet = new Set(frameMap.value.keys());
+  if (!hasFilteredOverlay.value || !filteredFrameSet.value || !data.value) return null;
+  const rawSet = new Set(frameMap.value.keys());
+  const filtSet = filteredFrameSet.value;
   const changed = new Set();
-  for (const f of rawSet) if (!filtSet.has(f)) changed.add(f);
-  for (const f of filtSet) if (!rawSet.has(f)) changed.add(f);
+  for (const f of rawSet)  if (!filtSet.has(f)) changed.add(f);
+  for (const f of filtSet) if (!rawSet.has(f))  changed.add(f);
   return changed.size > 0 ? changed : null;
 });
 
@@ -654,28 +703,27 @@ const currentDetections = computed(() => {
   return entry.detections.filter(d => enabledClasses.value.has(d.class_id));
 });
 
-// Raw frame map for the overlay: built only when filtered is the primary
-// view (rawOverlayResults is populated then). The overlay canvas draws
-// these at low opacity beneath the primary boxes so you can see what the
-// filter rejected.
-const rawOverlayFrameMap = computed(() => {
-  if (!rawOverlayResults.value) return null;
-  return new Map(rawOverlayResults.value.map(r => [r.frame, r]));
+// Filter annotation frame map: built only when filtered_detections.json was
+// loaded. Each entry is a "kept by filter" marker that the overlay draws as
+// a thin teal inset stroke inside the matching raw box.
+const filteredAnnotationFrameMap = computed(() => {
+  if (!filteredOverlayResults.value) return null;
+  return new Map(filteredOverlayResults.value.map(r => [r.frame, r]));
 });
 
-const currentRawOverlayDetections = computed(() => {
-  if (!rawOverlayFrameMap.value) return null;
-  const entry = rawOverlayFrameMap.value.get(currentFrame.value);
+const currentFilteredAnnotations = computed(() => {
+  if (!filteredAnnotationFrameMap.value) return null;
+  const entry = filteredAnnotationFrameMap.value.get(currentFrame.value);
   if (!entry) return [];
   return entry.detections.filter(d => enabledClasses.value.has(d.class_id));
 });
 
 // ── Optimized: single-pass class stats ─────────────────────────────────────
 const classStats = computed(() => computeClassStats(frameMap.value));
-// Parallel stats over the raw overlay — null when filtered isn't primary, so
-// the class panel falls back to showing just the primary count.
-const rawOverlayClassStats = computed(() =>
-  rawOverlayFrameMap.value ? computeClassStats(rawOverlayFrameMap.value) : null
+// Parallel stats over the filtered annotation — null when no filter file exists,
+// so the class panel falls back to showing just the raw count.
+const filteredClassStats = computed(() =>
+  filteredAnnotationFrameMap.value ? computeClassStats(filteredAnnotationFrameMap.value) : null
 );
 
 function computeClassStats(map) {
@@ -1025,31 +1073,12 @@ function drawOverlay() {
   const scaleX = contentW / inferW;
   const scaleY = contentH / inferH;
 
-  // Raw layer first (only when filter is primary): rejected detections drawn
-  // dim & dashed so they read as background context, not signal.
-  const rawDets = currentRawOverlayDetections.value;
-  if (rawDets && rawDets.length) {
-    ctx.save();
-    ctx.globalAlpha = 0.35;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    for (const det of rawDets) {
-      if (!det.bbox) continue;
-      const [x1, y1, x2, y2] = det.bbox;
-      ctx.strokeStyle = CLASS_COLORS[det.class_id % CLASS_COLORS.length];
-      ctx.strokeRect(offX + x1 * scaleX, offY + y1 * scaleY,
-                     (x2 - x1) * scaleX, (y2 - y1) * scaleY);
-    }
-    ctx.restore();
-  }
-
-  // Primary layer: full opacity, solid stroke, labelled.
+  // Single-view paint: raw detections only (no filter file on disk).
   const dets = currentDetections.value;
   if (!dets.length) return;
 
-  ctx.lineWidth = 2.5;
   ctx.font = "bold 13px 'JetBrains Mono', monospace";
-
+  ctx.lineWidth = 2.5;
   for (const det of dets) {
     if (!det.bbox) continue;
     const [x1, y1, x2, y2] = det.bbox;
@@ -1585,6 +1614,27 @@ onUnmounted(() => {
 .left-panel {
   border-right: 1px solid var(--border); overflow-y: auto;
   background: var(--bg-1); padding: 16px 14px; flex-shrink: 0;
+  position: relative;
+}
+/* Collapsed side panel: 36px-wide strip with just the toggle chevron showing.
+   Lets the user reclaim panel width for the compare canvases. */
+.side-panel--collapsed {
+  padding: 0 !important; overflow: hidden;
+}
+.panel-toggle {
+  background: transparent; border: none;
+  color: var(--text-faint); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 6px;
+  border-radius: 4px;
+  transition: color .15s, background .15s;
+}
+.panel-toggle:hover { color: var(--text); background: var(--bg-hover); }
+.left-panel  .panel-toggle { float: right; margin-bottom: 8px; }
+.right-panel .panel-toggle { float: left;  margin: 8px 0 8px 4px; }
+.side-panel--collapsed .panel-toggle {
+  float: none; margin: 0; padding: 12px 8px;
+  width: 100%;
 }
 .section { margin-bottom: 20px; }
 .section-label {
@@ -1610,23 +1660,6 @@ onUnmounted(() => {
   margin-top: 4px;
   color: var(--text-faint); font-family: var(--font-mono);
 }
-.filter-info-legend {
-  display: flex; align-items: center; gap: 6px;
-  margin-top: 8px; padding-top: 8px;
-  border-top: 1px solid var(--border);
-  font-size: 10px; color: var(--text-faint);
-}
-.legend-swatch {
-  display: inline-block; width: 14px; height: 3px; border-radius: 1px;
-  margin-right: 2px;
-}
-.legend-swatch--filtered {
-  background: var(--accent);
-}
-.legend-swatch--raw {
-  border-top: 2px dashed var(--text-faint); opacity: 0.6;
-}
-.legend-swatch + .legend-swatch { margin-left: 10px; }
 
 /* ── Main content ───────────────────────────────────────────────────────── */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
