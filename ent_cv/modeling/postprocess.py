@@ -28,7 +28,9 @@ from __future__ import annotations
 
 from fractions import Fraction
 import json
+import math
 from pathlib import Path
+import subprocess
 from typing import Optional
 
 from loguru import logger
@@ -39,6 +41,12 @@ import typer
 app = typer.Typer(add_completion=False)
 
 METHODS = ("run_length", "majority_vote", "gaussian")
+
+# Classes treated as "instruments" for in-use computation. Patient is the
+# reference object; Empty Hand / Not Sure are excluded because they aren't
+# instruments. Everything else in LABELS counts.
+PATIENT_CLASS = "Patient"
+NON_INSTRUMENT_CLASSES = frozenset({"Patient", "Empty Hand", "Not Sure"})
 
 
 # ── I/O ───────────────────────────────────────────────────────────────────
@@ -66,6 +74,78 @@ def save_json(data: object, path: Path) -> None:
     with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
     tmp.replace(path)
+
+
+# ── Frame dimensions ──────────────────────────────────────────────────────
+
+def _ffprobe_dims(video_path: Path) -> Optional[tuple[int, int]]:
+    """Return (width, height) for a video file via ffprobe, or None on failure."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=width,height",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(video_path),
+            ],
+            capture_output=True, text=True, check=True,
+        )
+        # Output is two lines: width then height. Some streams emit extra
+        # blank fields; pick the first two non-empty integer tokens.
+        nums: list[int] = []
+        for tok in result.stdout.split():
+            try:
+                nums.append(int(tok))
+            except ValueError:
+                continue
+            if len(nums) == 2:
+                break
+        if len(nums) < 2:
+            return None
+        return nums[0], nums[1]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
+def resolve_frame_dims(meta: dict) -> Optional[tuple[int, int]]:
+    """Return (width, height) from metadata; fall back to ffprobing the source.
+
+    Older metadata.json files written before width/height were recorded need a
+    fallback. We try the source path from metadata (file or directory of parts).
+    Returns None if dims can't be determined.
+    """
+    w = meta.get("width")
+    h = meta.get("height")
+    if isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0:
+        return w, h
+
+    src = meta.get("source")
+    if not src:
+        return None
+    src_path = Path(src)
+    if src_path.is_file():
+        return _ffprobe_dims(src_path)
+    if src_path.is_dir():
+        for candidate in sorted(src_path.iterdir()):
+            if candidate.is_file() and candidate.suffix.lower() == ".mp4":
+                dims = _ffprobe_dims(candidate)
+                if dims is not None:
+                    return dims
+    return None
+
+
+# ── Box geometry ──────────────────────────────────────────────────────────
+
+def min_box_distance(a: dict, b: dict) -> float:
+    """Minimum Euclidean distance between two axis-aligned boxes.
+
+    Returns 0.0 when the boxes overlap. Boxes use {x1, y1, x2, y2} in the same
+    coordinate space (pixels of the original frame).
+    """
+    dx = max(0.0, max(a["x1"] - b["x2"], b["x1"] - a["x2"]))
+    dy = max(0.0, max(a["y1"] - b["y2"], b["y1"] - a["y2"]))
+    return math.hypot(dx, dy)
 
 
 # ── Presence matrix ───────────────────────────────────────────────────────
@@ -452,6 +532,196 @@ def compute_summary(
     }
 
 
+# ── In-use detection ──────────────────────────────────────────────────────
+
+def _instrument_classes(classes: list[str]) -> list[str]:
+    """Subset of *classes* that should be evaluated for in-use status."""
+    return [c for c in classes if c not in NON_INSTRUMENT_CLASSES]
+
+
+def compute_in_use(
+    df: pl.DataFrame,
+    total_frames: int,
+    classes: list[str],
+    width: int,
+    height: int,
+    threshold_frac: float,
+    patient_df: Optional[pl.DataFrame] = None,
+    patient_carry_frames: int = 0,
+) -> tuple[np.ndarray, list[Optional[bool]]]:
+    """Determine in-use status per (frame, instrument class) and per detection row.
+
+    "In use" = the instrument box is within ``threshold_frac * frame_diagonal``
+    of a patient box (overlap → distance 0 → always in use).
+
+    Args:
+        df: detections to evaluate (the filtered df). Instrument-class rows in
+            this frame are scored. Patient rows here are ignored unless
+            *patient_df* is None.
+        patient_df: separate dataframe to source Patient boxes from. Defaults
+            to *df* itself. Pass the raw (unfiltered) df to sidestep temporal
+            filter dropouts of the patient class.
+        patient_carry_frames: max frame gap (inclusive) since the last real
+            patient detection during which carry-forward stays valid. 0 means
+            no carry-forward at all (patient must be present in the same frame).
+
+    Returns:
+        in_use_matrix: (total_frames, len(classes)) bool. Non-instrument
+            columns remain False.
+        row_flags: list parallel to df rows; True/False for instrument rows,
+            None for non-instrument rows.
+    """
+    instr_set = {c for c in classes if c not in NON_INSTRUMENT_CLASSES}
+    cls_idx = {name: i for i, name in enumerate(classes)}
+    threshold_px = threshold_frac * math.hypot(width, height)
+
+    patient_source = patient_df if patient_df is not None else df
+
+    # Per-frame patient boxes from the dedicated source
+    patient_boxes_by_frame: dict[int, list[dict]] = {}
+    for row in patient_source.iter_rows(named=True):
+        if row["name"] != PATIENT_CLASS:
+            continue
+        f = row["frame"]
+        if f >= total_frames:
+            continue
+        patient_boxes_by_frame.setdefault(f, []).append(row["box"])
+
+    # Per-frame instrument rows from the eval df, with their row index for flag write-back
+    instr_rows_by_frame: dict[int, list[tuple[int, str, dict]]] = {}
+    for i, row in enumerate(df.iter_rows(named=True)):
+        if row["name"] not in instr_set:
+            continue
+        f = row["frame"]
+        if f >= total_frames:
+            continue
+        instr_rows_by_frame.setdefault(f, []).append((i, row["name"], row["box"]))
+
+    in_use_matrix = np.zeros((total_frames, len(classes)), dtype=bool)
+    row_flags: list[Optional[bool]] = [None] * df.height
+
+    last_patient_boxes: list[dict] = []
+    last_patient_frame: int = -10**9
+
+    for frame in range(total_frames):
+        rows = instr_rows_by_frame.get(frame, [])
+        patient_now = patient_boxes_by_frame.get(frame)
+        if patient_now:
+            last_patient_boxes = patient_now
+            last_patient_frame = frame
+            active_patient = patient_now
+        elif frame - last_patient_frame <= patient_carry_frames and last_patient_boxes:
+            active_patient = last_patient_boxes
+        else:
+            active_patient = []
+
+        if not active_patient:
+            for ri, _name, _box in rows:
+                row_flags[ri] = False
+            continue
+
+        for ri, name, box in rows:
+            dist = min(min_box_distance(box, pb) for pb in active_patient)
+            is_in_use = dist <= threshold_px
+            row_flags[ri] = is_in_use
+            if is_in_use:
+                in_use_matrix[frame, cls_idx[name]] = True
+
+    return in_use_matrix, row_flags
+
+
+def extract_in_use_segments(
+    in_use_matrix: np.ndarray,
+    classes: list[str],
+    fps: float,
+) -> list[dict]:
+    """Split per-class in-use runs into a flat timeline of in-use spans."""
+    out: list[dict] = []
+    for ci, cls_name in enumerate(classes):
+        if cls_name in NON_INSTRUMENT_CLASSES:
+            continue
+        for start, end in _find_runs(in_use_matrix[:, ci]):
+            out.append({
+                "class_name": cls_name,
+                "start_frame": start,
+                "end_frame": end,
+                "start_sec": round(start / fps, 3),
+                "end_sec": round(end / fps, 3),
+                "duration_sec": round((end - start + 1) / fps, 3),
+                "frame_count": end - start + 1,
+            })
+    return sorted(out, key=lambda s: s["start_frame"])
+
+
+def annotate_segments_with_in_use(
+    segments: list[dict],
+    in_use_matrix: np.ndarray,
+    classes: list[str],
+    fps: float,
+) -> list[dict]:
+    """For each instrument segment, attach in_use_frame_count / fraction / spans."""
+    cls_idx = {name: i for i, name in enumerate(classes)}
+    enriched: list[dict] = []
+    for seg in segments:
+        cls = seg["class_name"]
+        if cls in NON_INSTRUMENT_CLASSES:
+            enriched.append(seg)
+            continue
+        ci = cls_idx.get(cls)
+        if ci is None:
+            enriched.append(seg)
+            continue
+        s, e = seg["start_frame"], seg["end_frame"]
+        window = in_use_matrix[s : e + 1, ci]
+        in_use_frames = int(window.sum())
+        total = e - s + 1
+        spans = []
+        for ls, le in _find_runs(window):
+            abs_s, abs_e = s + ls, s + le
+            spans.append({
+                "start_frame": abs_s,
+                "end_frame": abs_e,
+                "start_sec": round(abs_s / fps, 3),
+                "end_sec": round(abs_e / fps, 3),
+                "duration_sec": round((abs_e - abs_s + 1) / fps, 3),
+            })
+        enriched.append({
+            **seg,
+            "in_use_frame_count": in_use_frames,
+            "in_use_time_sec": round(in_use_frames / fps, 3),
+            "in_use_fraction": round(in_use_frames / total, 4) if total else 0.0,
+            "in_use_spans": spans,
+        })
+    return enriched
+
+
+def in_use_summary(
+    in_use_matrix: np.ndarray,
+    classes: list[str],
+    fps: float,
+    total_frames: int,
+) -> dict:
+    """Per-instrument in-use frame counts, time, and fraction of total case."""
+    sec_per_frame = 1.0 / fps if fps else 0.0
+    frame_counts: dict[str, int] = {}
+    time_sec: dict[str, float] = {}
+    fraction: dict[str, float] = {}
+    for ci, cls_name in enumerate(classes):
+        if cls_name in NON_INSTRUMENT_CLASSES:
+            continue
+        cnt = int(in_use_matrix[:, ci].sum())
+        if cnt == 0:
+            continue
+        frame_counts[cls_name] = cnt
+        time_sec[cls_name] = round(cnt * sec_per_frame, 3)
+        fraction[cls_name] = round(cnt / total_frames, 4) if total_frames else 0.0
+    return {
+        "in_use_frame_counts": frame_counts,
+        "in_use_time_sec": time_sec,
+        "in_use_fraction": fraction,
+    }
+
+
 # ── Main public API ───────────────────────────────────────────────────────
 
 def postprocess(
@@ -462,6 +732,8 @@ def postprocess(
     window_sec: float,
     vote_threshold: float,
     confidence_threshold: float = 0.0,
+    in_use_threshold: float = 0.02,
+    patient_carry_sec: float = 3.0,
     output_dir: Optional[Path] = None,
 ) -> dict:
     """Filter temporal noise from YOLO detections and write filtered outputs.
@@ -548,21 +820,59 @@ def postprocess(
     if method == "run_length" and gap_frames > 0:
         filtered_df = interpolate_gaps(filtered_df, M, M_filtered, classes)
 
+    # In-use computation (optional — skipped when threshold <= 0 or dims unknown)
+    dims = resolve_frame_dims(meta) if in_use_threshold > 0 else None
+    in_use_matrix: Optional[np.ndarray] = None
+    row_flags: list[Optional[bool]] = []
+    patient_carry_frames = max(0, round(patient_carry_sec * fps))
+    if in_use_threshold > 0 and dims is not None and not filtered_df.is_empty():
+        width, height = dims
+        # Source patient boxes from the raw (conf-filtered, not temporally
+        # filtered) df so dropouts in the patient temporal filter don't blind
+        # the carry-forward window.
+        in_use_matrix, row_flags = compute_in_use(
+            filtered_df, total_frames, classes, width, height, in_use_threshold,
+            patient_df=df,
+            patient_carry_frames=patient_carry_frames,
+        )
+    elif in_use_threshold > 0 and dims is None:
+        logger.warning(
+            "Skipping in-use computation: frame dimensions unavailable "
+            "(metadata lacks width/height and ffprobe fallback failed)."
+        )
+
     # Write filtered outputs as standard JSON for human readability
     filter_info = {"method": method, "source": str(raw_json), "confidence_threshold": confidence_threshold, **params}
+    if in_use_matrix is not None:
+        filter_info["in_use_threshold_frac"] = in_use_threshold
+        filter_info["patient_carry_sec"] = patient_carry_sec
+        filter_info["patient_carry_frames"] = patient_carry_frames
+        filter_info["frame_width"], filter_info["frame_height"] = dims
 
-    # Convert filtered DataFrame to list-of-dicts JSON
+    # Convert filtered DataFrame to list-of-dicts JSON, injecting per-row in_use
     filtered_records = filtered_df.to_dicts() if not filtered_df.is_empty() else []
+    if in_use_matrix is not None and row_flags:
+        for rec, flag in zip(filtered_records, row_flags):
+            if flag is not None:
+                rec["in_use"] = flag
     save_json(
         {"_filter": filter_info, "detections": filtered_records},
         output_dir / "filtered_detections.json",
     )
+
+    summary = compute_summary(filtered_df, total_frames, fps)
+    if in_use_matrix is not None:
+        summary.update(in_use_summary(in_use_matrix, classes, fps, total_frames))
+    save_json(summary, output_dir / "filtered_summary.json")
+
+    segments = extract_segments(filtered_df, total_frames, classes, fps)
+    if in_use_matrix is not None:
+        segments = annotate_segments_with_in_use(segments, in_use_matrix, classes, fps)
+        in_use_spans = extract_in_use_segments(in_use_matrix, classes, fps)
+    else:
+        in_use_spans = []
     save_json(
-        compute_summary(filtered_df, total_frames, fps),
-        output_dir / "filtered_summary.json",
-    )
-    save_json(
-        {"segments": extract_segments(filtered_df, total_frames, classes, fps)},
+        {"segments": segments, "in_use_segments": in_use_spans},
         output_dir / "filtered_segments.json",
     )
 
@@ -609,6 +919,14 @@ def main(
     window_sec: float = typer.Option(3.0, help="[majority_vote/gaussian] Window width in seconds"),
     vote_threshold: float = typer.Option(0.5, help="[majority_vote/gaussian] Vote fraction threshold"),
     confidence_threshold: float = typer.Option(0.0, help="Min detection confidence (0 = keep all)"),
+    in_use_threshold: float = typer.Option(
+        0.02,
+        help="In-use distance threshold as fraction of frame diagonal (0 = disable in-use detection)",
+    ),
+    patient_carry_sec: float = typer.Option(
+        3.0,
+        help="Carry forward last seen patient box for at most this many seconds (0 = no carry-forward)",
+    ),
     output_dir: Optional[Path] = typer.Option(None, help="Output directory (default: same as raw_json)"),
 ) -> None:
     """Post-process YOLO temporal detections to remove classification noise."""
@@ -621,6 +939,8 @@ def main(
         window_sec=window_sec,
         vote_threshold=vote_threshold,
         confidence_threshold=confidence_threshold,
+        in_use_threshold=in_use_threshold,
+        patient_carry_sec=patient_carry_sec,
     )
 
 

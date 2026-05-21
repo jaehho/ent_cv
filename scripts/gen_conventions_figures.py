@@ -16,9 +16,9 @@ from PIL import Image, ImageDraw, ImageFont
 from ent_cv.config import DATASETS_DIR
 
 REPO = Path(__file__).resolve().parents[1]
-OLD_LABELS = DATASETS_DIR / "exports" / "dataset_old_style_backup_20260508" / "labels" / "train"
-NEW_LABELS = DATASETS_DIR / "exports" / "combined_new" / "labels" / "train"
-IMAGES = DATASETS_DIR / "dataset" / "images" / "train"
+OLD_LABELS = DATASETS_DIR / "exports" / "tool-only" / "2026-05-08" / "labels" / "train"
+NEW_LABELS = DATASETS_DIR / "exports" / "grasp-coupled" / "2026-05-08" / "labels" / "train"
+IMAGES = DATASETS_DIR / "current" / "images" / "train"
 FIG_DIR = REPO / "docs" / "figures"
 
 CLASS_NAMES = [

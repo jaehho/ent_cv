@@ -81,7 +81,7 @@ def _build_annotations_zip(dataset_dir: Path, zip_path: Path) -> int:
 @app.command()
 def main(
     dataset_dir: Path = typer.Argument(
-        DATASETS_DIR / "dataset",
+        DATASETS_DIR / "current",
         help="Dataset directory in Ultralytics YOLO layout (images/train/, labels/train/, data.yaml).",
     ),
     host: str = "https://cvat.jaehho.com",

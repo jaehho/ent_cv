@@ -24,7 +24,7 @@ from rich.table import Table
 import typer
 import yaml
 
-from ent_cv.config import DATASETS_DIR, LABELS
+from ent_cv.config import LABELS
 
 _console = Console()
 
@@ -260,12 +260,11 @@ def main(
     dataset_dirs: Annotated[
         list[Path],
         typer.Argument(help="Two or more dataset directories to combine."),
-    ] = [DATASETS_DIR / "exports" / "batch1", DATASETS_DIR / "exports" / "batch2"],
-    output_dir: Path = typer.Option(
-        DATASETS_DIR / "dataset",
-        "--output-dir", "-o",
-        help="Destination directory for the combined dataset.",
-    ),
+    ],
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", "-o", help="Destination directory for the combined dataset."),
+    ],
     label_aliases: str = typer.Option(
         default="{}",
         help=(

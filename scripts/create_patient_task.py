@@ -1,76 +1,70 @@
-"""Extract ~30 sparse frames per case and upload to CVAT for Patient labeling.
+"""Subset the already-labeled dataset and upload to CVAT for Patient labeling.
 
-Uses a non-overlapping sampling offset (1500) to avoid collisions with
-existing frames extracted at interval=3000 (i.e., frames 0, 3000, 6000, …).
+Replaces the prior "extract new sparse frames" approach. We now sample from
+the existing labeled corpus so eventual merged labels stay frame-consistent:
+every labeled frame will have both instrument and patient coverage.
 
-One-off script for creating the patient annotation campaign.
+Patient class definition: any visible facial tissue.
+
+Bootstrap workflow:
+  1. (this script) Pick ~30 frames/case from datasets/current → upload to CVAT.
+  2. In CVAT, annotate Patient only on those frames. Instrument labels are
+     intentionally NOT pre-loaded — keep the task focused on the new class
+     and avoid scope creep on existing annotations.
+  3. Export, train a 1-class patient detector.
+  4. Use it to pseudo-label every frame in the labeled corpus, spot-check via
+     FiftyOne, then merge patient lines into existing .txt label files.
+  5. Train the unified multi-class model with Patient added to LABELS.
 """
 from __future__ import annotations
 
-import json
+from collections import defaultdict
 from pathlib import Path
+import re
 
-import cv2
 from cvat_sdk import make_client
 from cvat_sdk.core.proxies.tasks import ResourceType
 from dotenv import find_dotenv, load_dotenv
 from loguru import logger
 import typer
 
-from ent_cv.config import DATA_DIR, PREDICTIONS_DIR, PROCESSED_DATA_DIR, RAW_DATA_DIR
+from ent_cv.config import DATA_DIR, DATASETS_DIR
 
 load_dotenv(find_dotenv())
 
-SHARE_ROOT = DATA_DIR
+SHARE_ROOT = DATA_DIR  # /mnt/data/ent_cv -> /home/django/share in CVAT
+CURRENT_DATASET = DATASETS_DIR / "current"
 FRAMES_PER_CASE = 30
-OFFSET = 1500  # Avoid frames at multiples of 3000
+
+# Matches stems like "20251113_02_Part1_f018000"
+FRAME_RE = re.compile(r"^(?P<case>.+?)_Part(?P<part>\d+)_f(?P<frame>\d+)$")
 
 app = typer.Typer(add_completion=False)
 
 
-def _get_part_frame_counts(case: str) -> list[tuple[str, int]]:
-    """Return [(filename, frame_count), ...] sorted by filename."""
-    meta_path = PREDICTIONS_DIR / case / "metadata.json"
-    raw_dir = RAW_DATA_DIR / case
-
-    if meta_path.exists():
-        with open(meta_path) as f:
-            meta = json.load(f)
-        part_frames = meta.get("part_frames", {})
-        if part_frames:
-            return [(fn, n) for fn, n in sorted(part_frames.items())]
-
-    # Fallback: count frames via OpenCV (fast — reads metadata only)
-    videos = sorted(p for p in raw_dir.iterdir() if p.suffix.lower() == ".mp4")
-    result = []
-    for v in videos:
-        cap = cv2.VideoCapture(str(v))
-        n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        cap.release()
-        result.append((v.name, n))
-    return result
+def _evenly_spaced(items: list[Path], k: int) -> list[Path]:
+    """Pick k items evenly spaced across items by index, endpoints included."""
+    if len(items) <= k:
+        return list(items)
+    return [items[round(i * (len(items) - 1) / (k - 1))] for i in range(k)]
 
 
-def _extract_frame(video_path: Path, frame_num: int, output_path: Path) -> bool:
-    """Extract a single frame from a video file."""
-    cap = cv2.VideoCapture(str(video_path))
-    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-    ret, frame = cap.read()
-    cap.release()
-    if not ret:
-        return False
-    cv2.imwrite(str(output_path), frame)
-    return True
+def _group_by_case(image_paths: list[Path]) -> dict[str, list[Path]]:
+    """Group images by case ID, sorted within each case by (part, frame)."""
+    bucket: dict[str, list[tuple[int, int, Path]]] = defaultdict(list)
+    for p in image_paths:
+        m = FRAME_RE.match(p.stem)
+        if not m:
+            logger.warning(f"  unparseable stem, skipping: {p.name}")
+            continue
+        bucket[m["case"]].append((int(m["part"]), int(m["frame"]), p))
+    return {case: [p for _, _, p in sorted(rows)] for case, rows in bucket.items()}
 
 
 @app.command()
 def main(
-    task_name: str = "patient_sparse",
-    output_dir: Path = typer.Option(
-        PROCESSED_DATA_DIR / "extracted_frames" / "patient_sparse",
-        help="Where to save extracted frames.",
-    ),
-    frames_per_case: int = typer.Option(FRAMES_PER_CASE, help="Frames to sample per case."),
+    task_name: str = typer.Option("patient_sparse", help="CVAT task name."),
+    frames_per_case: int = typer.Option(FRAMES_PER_CASE, help="Max frames per case."),
     host: str = typer.Option("https://cvat.jaehho.com"),
     port: int = typer.Option(443),
     username: str = typer.Option(default=..., envvar="CVAT_USERNAME", prompt=True),
@@ -78,83 +72,33 @@ def main(
         default=..., envvar="CVAT_PASSWORD", prompt=True, hide_input=True
     ),
     project_id: int = typer.Option(default=..., envvar="CVAT_PROJECT_ID"),
-    extract_only: bool = typer.Option(False, help="Extract frames without uploading to CVAT."),
+    dry_run: bool = typer.Option(False, help="Print sample plan without creating the task."),
 ):
-    # Discover cases with raw videos
-    cases = sorted(
-        d.name
-        for d in RAW_DATA_DIR.iterdir()
-        if d.is_dir() and d.name != "test" and any(d.glob("*.mp4"))
-    )
-    logger.info(f"Found {len(cases)} cases with raw videos")
+    """Subset existing labeled frames and upload to CVAT for Patient annotation."""
+    images_dir = CURRENT_DATASET / "images" / "train"
+    if not images_dir.is_dir():
+        raise typer.BadParameter(f"Missing images dir: {images_dir}")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    all_image_paths: list[Path] = []
+    all_images = sorted(images_dir.glob("*.png"))
+    logger.info(f"Found {len(all_images)} labeled images in {images_dir}")
 
-    for case in cases:
-        raw_dir = RAW_DATA_DIR / case
-        parts = _get_part_frame_counts(case)
-        total_frames = sum(n for _, n in parts)
+    by_case = _group_by_case(all_images)
+    logger.info(f"Grouped into {len(by_case)} cases")
 
-        if total_frames < frames_per_case:
-            logger.warning(f"  {case}: only {total_frames} frames, sampling all")
-            interval = 1
-        else:
-            interval = total_frames // frames_per_case
+    sampled: list[Path] = []
+    for case in sorted(by_case):
+        case_frames = by_case[case]
+        picks = _evenly_spaced(case_frames, frames_per_case)
+        sampled.extend(picks)
+        logger.info(f"  {case}: sampled {len(picks)}/{len(case_frames)}")
 
-        # Build global sample points offset from existing extraction grid
-        sample_globals = []
-        g = OFFSET
-        while g < total_frames and len(sample_globals) < frames_per_case:
-            sample_globals.append(g)
-            g += interval
+    logger.info(f"Total sampled: {len(sampled)} frames across {len(by_case)} cases")
 
-        # Map global indices to (part_filename, local_frame)
-        samples: list[tuple[str, int, int]] = []  # (filename, local_frame, global_frame)
-        for g in sample_globals:
-            cumulative = 0
-            for filename, n_frames in parts:
-                if cumulative + n_frames > g:
-                    local = g - cumulative
-                    samples.append((filename, local, g))
-                    break
-                cumulative += n_frames
-
-        case_dir = output_dir / case
-        case_dir.mkdir(parents=True, exist_ok=True)
-
-        extracted = 0
-        for filename, local_frame, global_frame in samples:
-            part_stem = Path(filename).stem
-            out_name = f"{part_stem}_f{global_frame:06d}.png"
-            out_path = case_dir / out_name
-
-            if out_path.exists():
-                all_image_paths.append(out_path)
-                extracted += 1
-                continue
-
-            video_path = raw_dir / filename
-            if _extract_frame(video_path, local_frame, out_path):
-                all_image_paths.append(out_path)
-                extracted += 1
-            else:
-                logger.warning(f"  Failed to extract frame {local_frame} from {video_path}")
-
-        logger.info(
-            f"  {case}: {extracted}/{len(samples)} frames "
-            f"(interval={interval}, total={total_frames})"
-        )
-
-    logger.info(f"Total: {len(all_image_paths)} frames extracted to {output_dir}")
-
-    if extract_only:
-        logger.info("--extract-only set, skipping CVAT upload")
+    if dry_run:
+        logger.info("--dry-run set, skipping CVAT upload")
         return
 
-    # Upload to CVAT
-    share_paths = sorted(str(p.relative_to(SHARE_ROOT)) for p in all_image_paths)
-
+    share_paths = sorted(str(p.relative_to(SHARE_ROOT)) for p in sampled)
     with make_client(host=host, port=port, credentials=(username, password)) as client:
         task = client.tasks.create(spec={
             "name": task_name,
@@ -164,12 +108,12 @@ def main(
 
         logger.info(f"Uploading {len(share_paths)} images via SHARE...")
         task.upload_data(share_paths, resource_type=ResourceType.SHARE)
-        task.fetch()
-        logger.info(f"Upload complete — {task.size} frames")
+        logger.info(f"Upload complete — {len(share_paths)} frames")
 
     logger.success(
-        f"Task '{task_name}' (ID: {task.id}) ready with {task.size} frames.\n"
-        f"  {len(cases)} cases × ~{frames_per_case} frames/case"
+        f"Task '{task_name}' (ID: {task.id}) ready with {len(share_paths)} frames.\n"
+        f"  {len(by_case)} cases × up to {frames_per_case} frames/case\n"
+        f"  Source: subset of {CURRENT_DATASET.name}/images/train"
     )
 
 

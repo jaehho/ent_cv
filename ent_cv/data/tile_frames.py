@@ -10,7 +10,6 @@ import cv2
 from loguru import logger
 import typer
 
-from ent_cv.config import DATASETS_DIR
 from ent_cv.utils import notify
 
 app = typer.Typer()
@@ -57,8 +56,8 @@ def area(x1: int, y1: int, x2: int, y2: int) -> int:
 @app.command()
 @notify("Tiling Dataset")
 def main(
-    dataset_dir: Path = DATASETS_DIR / "dataset_batch2",
-    output_dir: Path = DATASETS_DIR / "dataset_batch2_tiled",
+    dataset_dir: Path,
+    output_dir: Path,
     tile_size: int = 1024,
     overlap: float = 0.25,
     min_visible_fraction: float = 0.2,

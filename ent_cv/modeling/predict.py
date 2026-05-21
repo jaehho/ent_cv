@@ -11,6 +11,7 @@ import typer
 from ultralytics import YOLO
 
 from ent_cv.config import PREDICTIONS_DIR
+from ent_cv.gpu import gpu_yield
 from ent_cv.utils import notify
 
 app = typer.Typer(add_completion=False)
@@ -107,33 +108,34 @@ def run(
     model = YOLO(str(weights), task="detect")
 
     logger.info(f"Source: {source}  conf={conf}  iou={iou}")
-    results_gen = model.predict(
-        source=str(source),
-        project=str(PREDICTIONS_DIR),
-        name=derived_name,
-        exist_ok=True,
-        stream=True,
-        conf=conf,
-        iou=iou,
-        imgsz=imgsz,
-        device=device,
-        save=save,
-        save_conf=save_conf,
-        save_txt=save_txt,
-        save_frames=save_frames,
-        verbose=verbose,
-    )
-
     frames_list: list[pl.DataFrame] = []
     n = 0
-
-    for result in results_gen:
-        df = result.to_df()
-        if not df.is_empty():
-            df = df.with_columns(pl.lit(n).alias("frame"))
-            frames_list.append(df)
-
-        n += 1
+    orig_shape: Optional[tuple[int, int]] = None  # (height, width) from first result
+    with gpu_yield(device):
+        results_gen = model.predict(
+            source=str(source),
+            project=str(PREDICTIONS_DIR),
+            name=derived_name,
+            exist_ok=True,
+            stream=True,
+            conf=conf,
+            iou=iou,
+            imgsz=imgsz,
+            device=device,
+            save=save,
+            save_conf=save_conf,
+            save_txt=save_txt,
+            save_frames=save_frames,
+            verbose=verbose,
+        )
+        for result in results_gen:
+            if orig_shape is None and getattr(result, "orig_shape", None) is not None:
+                orig_shape = tuple(int(v) for v in result.orig_shape[:2])  # (h, w)
+            df = result.to_df()
+            if not df.is_empty():
+                df = df.with_columns(pl.lit(n).alias("frame"))
+                frames_list.append(df)
+            n += 1
 
     if save_json and frames_list:
         all_df = pl.concat(frames_list)
@@ -147,6 +149,8 @@ def run(
     }
     if fps is not None:
         metadata["fps"] = fps
+    if orig_shape is not None:
+        metadata["height"], metadata["width"] = orig_shape
     with open(out_dir / "metadata.json", "w") as fh:
         json.dump(metadata, fh, indent=2)
 

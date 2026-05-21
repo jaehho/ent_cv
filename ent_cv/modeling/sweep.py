@@ -7,7 +7,7 @@ Three phases run sequentially with no manual intervention:
   Phase 3 — Final Training:       full training on the overall winner
 
 Usage:
-    uv run ent-cv sweep --data /mnt/data/ent_cv/datasets/dataset/data_with_val.yaml
+    uv run ent-cv sweep --data /mnt/data/ent_cv/datasets/current/data_with_val.yaml
     uv run ent-cv sweep --data ... --dry-run
 """
 
@@ -213,7 +213,7 @@ def _send_phase_email(
 
 
 LOCK_FILE = MODELS_DIR / "sweep.lock"
-DEFAULT_DATA = Path("/mnt/data/ent_cv/datasets/dataset/data_with_val.yaml")
+DEFAULT_DATA = Path("/mnt/data/ent_cv/datasets/current/data_with_val.yaml")
 
 
 def _acquire_lock(sweep_dir: Path) -> None:

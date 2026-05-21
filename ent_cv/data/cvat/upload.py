@@ -18,12 +18,12 @@ app = typer.Typer()
 
 @app.command()
 def main(
+    task_name: str = typer.Argument(..., help="CVAT task name to create."),
+    images_dir: Path = typer.Argument(..., help="Directory of images to upload."),
     host: str = "https://cvat.jaehho.com",
     port: int = 443,
     username: str = typer.Option(default=..., envvar="CVAT_USERNAME", prompt=True),
     password: str = typer.Option(default=..., envvar="CVAT_PASSWORD", prompt=True, hide_input=True),
-    task_name: str = "batch2",
-    images_dir: Path = Path("/home/jaeho/ent_cv/data/processed/extracted_frames/batch2"),
     share_root: Path = Path("/home/jaeho/ent_cv/data"),
     project_id: int | None = typer.Option(
         None, envvar="CVAT_PROJECT_ID",

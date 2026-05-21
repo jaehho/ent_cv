@@ -1,0 +1,63 @@
+"""Train patient_v2 on the v1 corpus + tasks 107 + 108 (all 14 cases).
+
+Same single config as v1 — yolo11s, img640, 80 epochs — to keep the
+v1 vs v2 comparison clean. Optimizer is still auto (AdamW lr=0.002 by the
+1-class heuristic); the only thing that changes between runs is the data.
+
+There's no held-out test reservoir for v2 — every case in the corpus is now
+in training. Decide quality from val curves + cross-version mAP trend, or wait
+for new case footage to land before re-testing on truly unseen data.
+"""
+from __future__ import annotations
+
+import argparse
+from datetime import datetime
+from pathlib import Path
+
+from loguru import logger
+
+from ent_cv.config import MODELS_DIR
+from ent_cv.modeling.train import run as train_run
+
+DATA_YAML = Path("/mnt/data/ent_cv/datasets/patient_v2/data.yaml")
+BASE_MODEL = "yolo11s.pt"
+EPOCHS = 80
+IMGSZ = 640
+
+
+def main(dry_run: bool = False) -> None:
+    project = MODELS_DIR / f"patient_v2_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    project.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Project dir: {project}")
+    logger.info(f"Data:        {DATA_YAML}")
+    logger.info(f"Model:       {BASE_MODEL}  imgsz={IMGSZ}  epochs={EPOCHS}")
+
+    if dry_run:
+        logger.info("--- DRY RUN ---")
+        return
+
+    result = train_run(
+        data=DATA_YAML,
+        model=BASE_MODEL,
+        epochs=EPOCHS,
+        project=project,
+        name_suffix="patient_v2_img640",
+        imgsz=IMGSZ,
+    )
+    rd = getattr(result, "results_dict", {}) or {}
+    save_dir = str(getattr(result, "save_dir", "") or "")
+    logger.success(
+        "Done.\n"
+        f"  weights:  {Path(save_dir) / 'weights' / 'best.pt'}\n"
+        f"  mAP50:    {float(rd.get('metrics/mAP50(B)', -1.0)):.4f}\n"
+        f"  mAP50-95: {float(rd.get('metrics/mAP50-95(B)', -1.0)):.4f}\n"
+        f"  P:        {float(rd.get('metrics/precision(B)', -1.0)):.3f}\n"
+        f"  R:        {float(rd.get('metrics/recall(B)', -1.0)):.3f}"
+    )
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="Print plan without training.")
+    args = ap.parse_args()
+    main(dry_run=args.dry_run)

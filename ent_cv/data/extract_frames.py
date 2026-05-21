@@ -13,7 +13,6 @@ import numpy as np
 from tqdm import tqdm
 import typer
 
-from ent_cv.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
 from ent_cv.utils import notify
 
 app = typer.Typer()
@@ -636,11 +635,11 @@ def _extract_results_fn(info: dict) -> tuple[str, list[Path]]:
 @notify("Frame Extraction", results_fn=_extract_results_fn)
 def extract_frames(
     input_path: Path = typer.Argument(
-        RAW_DATA_DIR / "",
+        ...,
         help="Path to a video file or directory of videos (searched recursively).",
     ),
     output_dir: Path = typer.Argument(
-        PROCESSED_DATA_DIR / "extracted_frames" / "batch1",
+        ...,
         help="Root directory for saved frames.",
     ),
     frame_interval: int = typer.Option(

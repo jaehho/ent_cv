@@ -5,9 +5,9 @@ base64 so the file is portable. Sampled and stratified by box-area change so
 the most/least-changed frames are visible at a glance.
 
 Inputs (paths fixed for this project):
-  OLD labels: /mnt/data/.../exports/dataset_old_style_backup_20260508/labels/train
-  NEW labels: /mnt/data/.../exports/combined_new/labels/train
-  Images:    /mnt/data/.../datasets/dataset/images/train
+  OLD labels: /mnt/data/.../exports/tool-only/2026-05-08/labels/train
+  NEW labels: /mnt/data/.../exports/grasp-coupled/2026-05-08/labels/train
+  Images:    /mnt/data/.../datasets/current/images/train
 
 Output: spot_check.html (repo root)
 Run:    uv run python scripts/build_spot_check.py
@@ -27,9 +27,9 @@ from PIL import Image, ImageDraw, ImageFont
 from ent_cv.config import DATASETS_DIR
 
 REPO = Path(__file__).resolve().parents[1]
-OLD_LABELS = DATASETS_DIR / "exports" / "dataset_old_style_backup_20260508" / "labels" / "train"
-NEW_LABELS = DATASETS_DIR / "exports" / "combined_new" / "labels" / "train"
-IMAGES = DATASETS_DIR / "dataset" / "images" / "train"
+OLD_LABELS = DATASETS_DIR / "exports" / "tool-only" / "2026-05-08" / "labels" / "train"
+NEW_LABELS = DATASETS_DIR / "exports" / "grasp-coupled" / "2026-05-08" / "labels" / "train"
+IMAGES = DATASETS_DIR / "current" / "images" / "train"
 OUT = REPO / "spot_check.html"
 
 CLASS_NAMES = [

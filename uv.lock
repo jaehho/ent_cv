@@ -538,21 +538,21 @@ wheels = [
 
 [[package]]
 name = "cvat-cli"
-version = "2.58.0"
+version = "2.64.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "cvat-sdk" },
     { name = "pillow" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ef/e1/8fe01aa8e56492903fd74c116ed4b2371436bfca40f22fe6e580d5e62e1b/cvat_cli-2.58.0.tar.gz", hash = "sha256:d795f512db0d975f38dd0036418531250c2b7933781348685ea4731f4b67457f", size = 22649, upload-time = "2026-02-23T21:06:03.375Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/cf/dd0491a2f12e19541ec891c45157d16603b9016da5059efb7d247af33198/cvat_cli-2.64.0.tar.gz", hash = "sha256:8476d98fbabf0c6b821efb15dccc2849eba3bc02fa7dc578a057177957728042", size = 22732, upload-time = "2026-04-29T21:00:37.424Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/95/b0138cbc258405b6e84dc7b02ea3cd209362dc964ac24b694f32d10b95c6/cvat_cli-2.58.0-py3-none-any.whl", hash = "sha256:c4afd3720d8f00e1dba9cc8f408f8d18db20e5e9811e6c19a31549ef54d3d547", size = 26394, upload-time = "2026-02-23T21:05:59.991Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/21/a968c5f61cb78b6b947bfc592ef38c6d4cb55864833aa48d3af64707728d/cvat_cli-2.64.0-py3-none-any.whl", hash = "sha256:32a67dd7d041f9c09ad1be6437888c9f52e5d7e2598ad5a785c81a940e964ac3", size = 26461, upload-time = "2026-04-29T21:00:33.248Z" },
 ]
 
 [[package]]
 name = "cvat-sdk"
-version = "2.58.0"
+version = "2.64.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -564,9 +564,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/5c/3380e928955001170e7f0cf1316d0c7f55823674506105971a93696d1c1c/cvat_sdk-2.58.0.tar.gz", hash = "sha256:dca15e60e272422f011f07ad945dbdceb21edcbc34c99fcc27c107be562a8ccc", size = 241022, upload-time = "2026-02-23T21:06:04.72Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/71/73/2841de257ce009f6202d50e20080767d498bdf5da06c244fddaa620613c2/cvat_sdk-2.64.0.tar.gz", hash = "sha256:e69cb0b8a51922c55b76daf9e7d45469374df3d09c428932b1d770896d144575", size = 241082, upload-time = "2026-04-29T21:00:38.909Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ea/5a/656d8a18ba06e275dabd873a936b8d10c8da04a24232e465553495ffc743/cvat_sdk-2.58.0-py3-none-any.whl", hash = "sha256:9b5357a5f9b80887370af3fb174224383632e9a871fff49c70d49b856121f1ca", size = 785912, upload-time = "2026-02-23T21:06:01.632Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/3c/e7417f9f8109092e08ff9194710314c04237054f048995034989bf57b09b/cvat_sdk-2.64.0-py3-none-any.whl", hash = "sha256:b78f1aac54294cab43aedb020d9262b082d7feca8a62dcd758bd02db93378274", size = 785865, upload-time = "2026-04-29T21:00:35.225Z" },
 ]
 
 [[package]]
@@ -711,8 +711,8 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cvat-cli" },
-    { name = "cvat-sdk" },
+    { name = "cvat-cli", specifier = ">=2.64.0" },
+    { name = "cvat-sdk", specifier = ">=2.64.0" },
     { name = "django", specifier = ">=6.0.3" },
     { name = "fiftyone", specifier = ">=1.15.0" },
     { name = "ipython" },

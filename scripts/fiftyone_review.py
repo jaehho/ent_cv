@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 from ent_cv.config import DATASETS_DIR, PREDICTIONS_DIR
 
-DATASET_DIR = DATASETS_DIR / "dataset"
+DATASET_DIR = DATASETS_DIR / "current"
 DATA_YAML = DATASET_DIR / "data_with_val.yaml"
 
 # 20251113_02_Part1_f000000  -> case=20251113_02, part=1, local_frame=0

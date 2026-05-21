@@ -31,7 +31,7 @@ import yaml
 
 from ent_cv.config import DATA_DIR, DATASETS_DIR
 
-DATASET_DIR = DATASETS_DIR / "dataset"
+DATASET_DIR = DATASETS_DIR / "current"
 DATA_YAML = DATASET_DIR / "data.yaml"
 IMAGES_DIR = DATASET_DIR / "images" / "train"
 LABELS_DIR = DATASET_DIR / "labels" / "train"

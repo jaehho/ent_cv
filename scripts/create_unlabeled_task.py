@@ -16,7 +16,7 @@ from ent_cv.config import DATA_DIR, DATASETS_DIR
 load_dotenv(find_dotenv())
 
 SHARE_ROOT = DATA_DIR  # /mnt/data/ent_cv -> /home/django/share
-COMBINED_DIR = DATASETS_DIR / "dataset"
+COMBINED_DIR = DATASETS_DIR / "current"
 
 app = typer.Typer(add_completion=False)
 
