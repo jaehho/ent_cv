@@ -2,6 +2,19 @@
 
 Running, append-only log of design decisions and non-trivial changes. Newest on top.
 
+## 2026-05-21 — Phase 5 IA cleanup: shipped and reverted same day
+
+**Context.** Phase 5 of the web refactor plan called for two changes: (1) pull the time/frame readout out of the left panel into a new strip under the video; (2) collapse the keyboard-hints bar behind a `? Keyboard shortcuts` toggle.
+
+**Why reverted.** Both were stylistic preferences I rationalized as IA wins, not actual fixes for the original *"hard to find controls"* complaint (which was already addressed in Phase 1 by removing the postprocess UI).
+
+- **Time strip move.** The new strip was *smaller* (22 px vs the previous 28 px clock) and less prominent. The "~280 px eye travel" argument in the original commit was made up — the old time-display sat at the bottom of the left panel, roughly aligned with the bottom of the video, so the horizontal distance while glancing was minor.
+- **Keyboard hints collapse.** Reclaimed only ~24 px of vertical chrome. For a single-user model-debugging tool, ambient shortcut visibility helps more than the tiny space gain hurts.
+
+**Decision.** Phase 5 ships as a no-op. Code is unchanged from the end of Phase 4; this log entry exists so the lesson survives the squash.
+
+**Lesson.** When the original phase plan was written, "single time/frame readout" was based on a vague intuition rather than a concrete pain point. Should have pushed back at planning time. Don't ship UI moves "because the plan said so" — needs a real complaint behind it.
+
 ## 2026-05-20 — Raw-vs-filtered comparison: parked
 
 **Context.** Web viewer's overlay should let the user understand what the postprocess filter changes between the model's raw predictions and the kept "filtered" predictions. Cycled through several visual treatments, none landed.
