@@ -56,6 +56,8 @@
             :jump-frame-count="jumpFrames?.length ?? null"
             :changed-frames-available="!!changedFrames"
             :displayed-classes="displayedClasses"
+            v-model:view-mode="detectionViewMode"
+            :filtered-available="hasFilteredOverlay"
             @toggle-play="togglePlay"
             @set-rate="setRate"
             @seek-prev="seekFiltered(-1)"
@@ -195,6 +197,7 @@
                 overscrollBehavior: 'none'
               }"
               @click="handleRasterClick"
+              @dblclick="resetZoom"
               @mousemove="handleRasterMouseMove"
               @mousedown="handleRasterMouseDown"
               @mouseleave="hoveredFrame = null"
@@ -219,16 +222,44 @@
               Frame {{ hoveredFrame }} ·
               {{ formatTime(hoveredFrame / data.fps) }}
             </div>
+
+            <!-- Shift+drag region select. Visible only while the gesture is active. -->
+            <div
+              v-if="regionSelect"
+              class="region-select"
+              :style="{
+                left: Math.min(regionSelect.startX, regionSelect.currentX) + 'px',
+                width: Math.max(1, Math.abs(regionSelect.currentX - regionSelect.startX)) + 'px',
+              }"
+            ></div>
           </div>
         </div>
 
-        <!-- Minimap -->
+        <!-- Minimap. Drag the viewport block to pan; drag its left/right edge to
+             rescale (zoom). Clicking outside the viewport recenters on cursor.
+             Viewport rectangle and playhead are CSS divs so pan/zoom/scrub
+             never repaint the minimap canvas. -->
         <div style="padding:6px 0 6px 120px;border-top:1px solid var(--border);background:var(--bg-1);flex-shrink:0">
-          <canvas
-            ref="minimapRef"
-            style="width:100%;height:24px;display:block;cursor:pointer;border-radius:3px"
-            @click="handleMinimapClick"
-          />
+          <div ref="minimapWrapRef" style="position:relative;line-height:0">
+            <canvas
+              ref="minimapRef"
+              :style="{ width:'100%', height:'24px', display:'block', borderRadius:'3px', cursor: minimapCursor }"
+              @mousedown="handleMinimapMouseDown"
+              @mousemove="handleMinimapHover"
+              @mouseleave="minimapCursor = 'pointer'"
+              @dblclick="resetZoom"
+            />
+            <div
+              v-if="data && minimapWidth > 0"
+              class="minimap-viewport"
+              :style="{ left: minimapViewport.left + 'px', width: minimapViewport.width + 'px' }"
+            ></div>
+            <div
+              v-if="data && minimapWidth > 0"
+              class="minimap-playhead"
+              :style="{ transform: `translateX(${minimapPlayheadX}px)` }"
+            ></div>
+          </div>
         </div>
 
         <!-- Keyboard hints -->
@@ -236,8 +267,8 @@
           <span><kbd class="kbd">Space</kbd> Play/Pause</span>
           <span><kbd class="kbd">←→</kbd> Frame step</span>
           <span><kbd class="kbd">Shift+←→</kbd> 10 frames</span>
-          <span><kbd class="kbd">+/-</kbd> Zoom</span>
-          <span><kbd class="kbd">0</kbd> Reset zoom</span>
+          <span><kbd class="kbd">Shift+drag</kbd> Zoom region</span>
+          <span><kbd class="kbd">Dbl-click</kbd> Reset zoom</span>
           <span><kbd class="kbd">Scroll</kbd> Zoom at cursor</span>
         </div>
       </div>
@@ -295,13 +326,17 @@
           style="flex-shrink:0;border-top:1px solid var(--border);padding:10px 14px;max-height:40%;overflow-y:auto">
           <div class="section-label" style="margin-bottom:8px">Transitions</div>
           <div style="display:flex">
-            <!-- Row labels -->
+            <!-- Row labels — height locked to cellSize so labels align row-for-row with the grid.
+                 Long labels truncate with ellipsis; hover the title for the full name. -->
             <div :style="{ display:'flex', flexDirection:'column', marginRight:'8px', width: transitionMatrix.rowLabelW + 'px', flexShrink: 0 }">
               <!-- spacer aligns row labels with grid rows (below column label area) -->
               <div style="height:80px;flex-shrink:0"></div>
-              <div :style="{ minHeight: transitionMatrix.cellSize + 'px', width: transitionMatrix.rowLabelW + 'px' }" v-for="cls in transitionMatrix.classes" :key="'rl-'+cls"
-                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:var(--text-faint);white-space:normal;overflow-wrap:normal;word-break:keep-all;text-align:right;padding:2px 0"
-                :title="cls">{{ cls }}</div>
+              <div v-for="cls in transitionMatrix.classes" :key="'rl-'+cls"
+                :style="{ height: transitionMatrix.cellSize + 'px', width: transitionMatrix.rowLabelW + 'px' }"
+                style="display:flex;align-items:center;justify-content:flex-end;font-size:9px;color:var(--text-faint);text-align:right;padding:0 4px 0 0;overflow:hidden;flex-shrink:0"
+                :title="cls">
+                <span style="display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ cls }}</span>
+              </div>
             </div>
             <div style="flex:1;min-width:0">
               <!-- Column labels: rotated 90° upward -->
@@ -385,16 +420,19 @@ const CLASS_COLORS_RGB = CLASS_COLORS.map(hex => ({
 }));
 
 // ── Case data (composable) ────────────────────────────────────────────────
-// `data` is always raw — the model's actual output and what the page is
-// fundamentally visualizing. `filteredOverlayResults` is the kept-annotation
-// layer, populated only when a filter file exists on disk; the overlay canvas
-// draws those as a thin teal inset stroke inside the matching raw box.
+// `data` holds the universal context (classes, total_frames, fps, parts,
+// _filter). The overlay and per-frame stats follow `detectionViewMode`:
+// 'filtered' (default) sources from filteredOverlayResults so in_use flags
+// and post-processed boxes appear; 'raw' shows the model's unfiltered
+// output for debugging. The composable swaps the underlying results array
+// based on this ref — no re-fetch, both payloads are kept in memory.
+const detectionViewMode = ref("filtered");  // 'raw' | 'filtered'
 const {
   data, filteredOverlayResults, dataReady, videoSrc, videoReady, activeCaseName,
   filterInfo, filteredFrameSet, filteredSummary, isLoading, hasFilteredOverlay,
   frameMap, partStartTs, partStartFrame,
   fetchCase,
-} = useCaseData();
+} = useCaseData(detectionViewMode);
 
 // ── UI state ──────────────────────────────────────────────────────────────
 const currentFrame      = ref(0);
@@ -447,7 +485,10 @@ const overlayRef   = ref(null);
 const rasterRef    = ref(null);
 const rasterWrapRef = ref(null);
 const rasterWidth  = ref(0);   // CSS px, kept in sync via ResizeObserver
-const minimapRef   = ref(null);
+const minimapRef    = ref(null);
+const minimapWrapRef = ref(null);
+const minimapWidth  = ref(0);   // CSS px, kept in sync via ResizeObserver
+let _minimapResizeObserver = null;
 const animFrameRef = ref(null);
 const isPanningRef = ref(false);
 const panStartRef  = ref({ x: 0, offset: 0 });
@@ -473,6 +514,18 @@ const currentTime = computed(() => {
   const fps = data.value?.fps;
   if (!fps || isNaN(currentFrame.value)) return 0;
   return currentFrame.value / fps;
+});
+
+// Minimap viewport rectangle position/size (CSS px). Computed off the same
+// state as the canvas-drawn version was, but driving a CSS div instead.
+const minimapViewport = computed(() => {
+  if (!data.value || minimapWidth.value <= 0) return { left: 0, width: 0 };
+  const W = minimapWidth.value;
+  return { left: panOffset.value * W, width: (1 / zoomLevel.value) * W };
+});
+const minimapPlayheadX = computed(() => {
+  if (!data.value || minimapWidth.value <= 0) return 0;
+  return (currentFrame.value / data.value.total_frames) * minimapWidth.value;
 });
 
 // Playhead position in CSS pixels, or -1 when out of view. Rendered as a
@@ -609,6 +662,31 @@ const filteredSparseMap = computed(() => {
     if (row) result.set(frameNum, row);
   }
   return result;
+});
+
+// Parallel to filteredSparseMap: per-class in-use bitset per frame. A class
+// counts as "in use" at frame f when any detection in that frame has
+// in_use === true. Returns null when no detection in the case carries an
+// in_use field (raw mode, or in-use disabled at postprocess time).
+const inUseSparseMap = computed(() => {
+  if (!data.value) return null;
+  const numClasses = data.value.classes.length;
+  const enabled = enabledClasses.value;
+  const result = new Map();
+  let sawInUseField = false;
+
+  for (const [frameNum, entry] of frameMap.value) {
+    let row = null;
+    for (const det of entry.detections) {
+      if (typeof det.in_use === 'boolean') sawInUseField = true;
+      if (det.in_use === true && enabled.has(det.class_id)) {
+        if (!row) row = new Uint8Array(numClasses);
+        row[det.class_id] = 1;
+      }
+    }
+    if (row) result.set(frameNum, row);
+  }
+  return sawInUseField ? result : null;
 });
 
 // Frames where raw and filtered disagree: detection in raw with none in filtered
@@ -1091,7 +1169,8 @@ function drawOverlay() {
     ctx.strokeStyle = color;
     ctx.strokeRect(rx, ry, rw, rh);
 
-    const label = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
+    const inUseSuffix = det.in_use === true ? "  IN USE" : "";
+    const label = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%${inUseSuffix}`;
     const textW = ctx.measureText(label).width;
     const lh = 19;
     const ly = ry > lh ? ry - lh : ry + lh;
@@ -1145,21 +1224,30 @@ function drawRaster() {
   // Build class index to display row mapping
   const clsToRow = classIdxToRowIdx.value;
 
-  // ⚡ Optimization: Look up sparse coordinates directly instead of looping evaluating entries
-  // Moves from O(All Detections) down to bounds-constrained O(Visible Frames) limits.
-  for (let f = startFrame; f < endFrame; f++) {
+  // ⚡ Optimization: When many frames fall in one pixel (low zoom), iterate by
+  // a step rather than every frame — multiple per-pixel writes are wasted work.
+  // step = ceil(0.5 / pxPerFrame) keeps ~2 samples per pixel, more than enough
+  // to resolve detection density visually. At high zoom (pxPerFrame >= 1)
+  // step==1 and behavior is identical to the dense loop.
+  const inUseSparse = inUseSparseMap.value;
+  const step = pxPerFrame >= 1 ? 1 : Math.max(1, Math.ceil(0.5 / pxPerFrame));
+  const barW = Math.max(pxPerFrame * step, 1);
+
+  for (let f = startFrame; f < endFrame; f += step) {
     const row = sparse.get(f);
     if (!row) continue;
-    
+    const inUseRow = inUseSparse ? inUseSparse.get(f) : null;
     const x = (f - startFrame) * pxPerFrame;
-    const barW = Math.max(pxPerFrame, 1);
-    
+
     for (let c = 0; c < numClasses; c++) {
       if (row[c] > 0) {
-        const displayRow = clsToRow.get(c) ?? c; 
-        const alpha = 0.3 + row[c] * 0.7;
+        const displayRow = clsToRow.get(c) ?? c;
+        let alpha = 0.3 + row[c] * 0.7;
+        if (inUseSparse && !(inUseRow && inUseRow[c])) {
+          alpha *= 0.35;  // present-but-idle: clearly dimmer than in-use
+        }
         const rgb = CLASS_COLORS_RGB[c % CLASS_COLORS_RGB.length];
-        
+
         ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
         ctx.fillRect(x, displayRow * rowH + 1, barW, rowH - 2);
       }
@@ -1182,6 +1270,11 @@ function drawRaster() {
   }
 }
 
+// The minimap canvas only paints static-per-data content (bars + changed
+// strip). The viewport rectangle and playhead live as sibling CSS divs so
+// pan / zoom / scrub move only those — no canvas redraw. This is the same
+// trick the raster playhead uses; without it, every minimap drag forces a
+// full sparse-iteration repaint and the gesture jitters at high frame counts.
 function drawMinimap() {
   const canvas = minimapRef.value;
   const sparse = filteredSparseMap.value;
@@ -1222,16 +1315,6 @@ function drawMinimap() {
     }
   }
 
-  // Viewport indicator
-  const visibleFraction = 1 / zoomLevel.value;
-  const vpX = panOffset.value * W;
-  const vpW = visibleFraction * W;
-  ctx.fillStyle = _canvas.viewportFill;
-  ctx.fillRect(vpX, 0, vpW, H);
-  ctx.strokeStyle = _canvas.marker;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(vpX, 0, vpW, H);
-
   // Changed-frame markers (filtered mode) — 2-px strip at minimap top
   const mcf = changedFrames.value;
   if (mcf) {
@@ -1241,12 +1324,7 @@ function drawMinimap() {
       ctx.fillRect((f / totalFrames) * W, 0, Math.max(pxPerFr, 1), 2);
     }
   }
-
-  // Playhead
-  const phX = (currentFrame.value / totalFrames) * W;
-  ctx.strokeStyle = "var(--warn)";
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(phX, 0); ctx.lineTo(phX, H); ctx.stroke();
+  // Viewport rectangle + playhead intentionally NOT drawn here — see CSS divs.
 }
 
 // ── Reactive drawing (batched via RAF) ─────────────────────────────────────
@@ -1282,11 +1360,11 @@ watch(
   { flush: "post" }
 );
 
-// Minimap shows the whole timeline at low resolution + a viewport indicator;
-// it doesn't draw a playhead. Splitting it off the currentFrame dep means
-// scrubbing no longer repaints the minimap once per frame.
+// Minimap content (background bars + changed-frame strip) only changes with
+// the underlying data. Viewport rect + playhead are CSS divs now, so panning,
+// zooming, and scrubbing never need to repaint this canvas.
 watch(
-  [filteredSparseMap, changedFrames, () => zoomLevel.value, () => panOffset.value],
+  [filteredSparseMap, changedFrames],
   () => scheduleDraws(4),  // minimap
   { flush: "post" }
 );
@@ -1317,6 +1395,18 @@ watch(rasterWrapRef, (el) => {
       for (const entry of entries) rasterWidth.value = entry.contentRect.width;
     });
     _rasterResizeObserver.observe(el);
+  }
+});
+
+// Track minimap width too — drives the CSS-positioned viewport rectangle and
+// playhead without forcing a canvas repaint.
+watch(minimapWrapRef, (el) => {
+  if (el && !_minimapResizeObserver) {
+    minimapWidth.value = el.clientWidth;
+    _minimapResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) minimapWidth.value = entry.contentRect.width;
+    });
+    _minimapResizeObserver.observe(el);
   }
 });
 
@@ -1435,13 +1525,23 @@ watchEffect((onCleanup) => {
 });
 
 // ── Auto-pan to follow playhead ────────────────────────────────────────────
-watch([() => currentFrame.value, () => isPlaying.value], () => {
-  if (!data.value || !isPlaying.value) return;
+// "Pan only when off-screen": when the playhead leaves the visible window —
+// whether from playback, arrow-step, jump, or click — pan to recenter it.
+// While inside the window we leave the viewport alone, so manual mid-view
+// scrubbing doesn't jitter.
+//
+// Exception: during playback we add a small leading-edge margin so the
+// viewport scrolls a beat before the playhead actually exits, avoiding a
+// visible flicker at the right edge.
+watch([() => currentFrame.value, () => zoomLevel.value], () => {
+  if (!data.value || zoomLevel.value <= 1) return;
   const visibleFraction = 1 / zoomLevel.value;
   const playheadPos = currentFrame.value / data.value.total_frames;
+  const viewStart = panOffset.value;
   const viewEnd = panOffset.value + visibleFraction;
-  if (playheadPos > viewEnd - 0.02) {
-    panOffset.value = Math.min(playheadPos - visibleFraction * 0.8, 1 - visibleFraction);
+  const margin = isPlaying.value ? visibleFraction * 0.02 : 0;
+  if (playheadPos < viewStart || playheadPos > viewEnd - margin) {
+    panOffset.value = Math.max(0, Math.min(playheadPos - visibleFraction / 2, 1 - visibleFraction));
   }
 });
 
@@ -1463,6 +1563,12 @@ function handleRasterClick(e) {
 function handleRasterMouseMove(e) {
   const frame = getFrameFromMouse(e, rasterRef.value);
   hoveredFrame.value = frame;
+  // Active Shift+drag region select — update the rectangle's right edge.
+  if (regionSelect.value && rasterRef.value) {
+    const rect = rasterRef.value.getBoundingClientRect();
+    regionSelect.value = { startX: regionSelect.value.startX, currentX: e.clientX - rect.left };
+    return;
+  }
   // While the user is actively dragging, skip the video seek — only update
   // the JS frame + overlay. The final video.currentTime write happens once
   // in onGlobalMouseUp when the drag ends.
@@ -1475,6 +1581,14 @@ function handleRasterMouseDown(e) {
     isPanningRef.value = true;
     panStartRef.value = { x: e.clientX, offset: panOffset.value };
   } else if (e.button === 0) {
+    if (e.shiftKey && rasterRef.value) {
+      // Shift+drag → region-zoom: don't scrub, just track a selection rectangle.
+      e.preventDefault();
+      const rect = rasterRef.value.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      regionSelect.value = { startX: x, currentX: x };
+      return;
+    }
     isDraggingTimeline.value = true;
     const frame = getFrameFromMouse(e, rasterRef.value);
     if (frame !== null) seekToFrame(frame);
@@ -1496,12 +1610,124 @@ function handleWheel(e) {
   zoomLevel.value = newZoom;
 }
 
-function handleMinimapClick(e) {
-  if (!data.value || !minimapRef.value) return;
+function resetZoom() { zoomLevel.value = 1; panOffset.value = 0; }
+
+// ── Minimap drag interactions ─────────────────────────────────────────────
+// Hit zones on the viewport rectangle drawn over the minimap:
+//   left edge (±MINIMAP_EDGE_PX) → drag to resize from left side  → zoom + pan
+//   right edge (±MINIMAP_EDGE_PX) → drag to resize from right side → zoom only
+//   inside the viewport          → drag to pan                    → pan only
+//   outside the viewport         → press recenters; drag pans     → pan only
+// `minimapCursor` ref reflects the hover zone so the cursor previews the action.
+const MINIMAP_EDGE_PX = 6;
+const minimapCursor = ref('pointer');
+// Active drag: { mode: 'pan'|'resize-left'|'resize-right', startClientX, startOffset, startFrac, mapWidth }
+let _minimapDrag = null;
+
+function _minimapZone(x, vpStart, vpEnd) {
+  if (x >= vpStart - MINIMAP_EDGE_PX && x <= vpStart + MINIMAP_EDGE_PX) return 'edge-left';
+  if (x >= vpEnd - MINIMAP_EDGE_PX && x <= vpEnd + MINIMAP_EDGE_PX) return 'edge-right';
+  if (x >= vpStart && x <= vpEnd) return 'inside';
+  return 'outside';
+}
+
+function handleMinimapHover(e) {
+  if (_minimapDrag || !minimapRef.value || !data.value) return;
   const rect = minimapRef.value.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / rect.width;
+  const W = rect.width;
+  const x = e.clientX - rect.left;
   const visibleFraction = 1 / zoomLevel.value;
-  panOffset.value = Math.max(0, Math.min(x - visibleFraction / 2, 1 - visibleFraction));
+  const vpStart = panOffset.value * W;
+  const vpEnd = vpStart + visibleFraction * W;
+  const zone = _minimapZone(x, vpStart, vpEnd);
+  minimapCursor.value =
+    zone === 'edge-left' || zone === 'edge-right' ? 'ew-resize'
+    : zone === 'inside' ? 'grab'
+    : 'pointer';
+}
+
+function handleMinimapMouseDown(e) {
+  if (!data.value || !minimapRef.value || e.button !== 0) return;
+  const rect = minimapRef.value.getBoundingClientRect();
+  const W = rect.width;
+  const x = e.clientX - rect.left;
+  const visibleFraction = 1 / zoomLevel.value;
+  const vpStart = panOffset.value * W;
+  const vpEnd = vpStart + visibleFraction * W;
+  const zone = _minimapZone(x, vpStart, vpEnd);
+
+  if (zone === 'edge-left' || zone === 'edge-right') {
+    _minimapDrag = {
+      mode: zone === 'edge-left' ? 'resize-left' : 'resize-right',
+      startClientX: e.clientX,
+      startOffset: panOffset.value,
+      startFrac: visibleFraction,
+      mapWidth: W,
+    };
+    minimapCursor.value = 'ew-resize';
+  } else {
+    // Inside-viewport drag pans from current offset.
+    // Outside-viewport press recenters on cursor first, then drag pans from there.
+    let startOffset = panOffset.value;
+    if (zone === 'outside') {
+      startOffset = Math.max(0, Math.min(x / W - visibleFraction / 2, 1 - visibleFraction));
+      panOffset.value = startOffset;
+    }
+    _minimapDrag = {
+      mode: 'pan',
+      startClientX: e.clientX,
+      startOffset,
+      startFrac: visibleFraction,
+      mapWidth: W,
+    };
+    minimapCursor.value = 'grabbing';
+  }
+}
+
+function _onMinimapDragMove(e) {
+  const d = _minimapDrag;
+  if (!d || !data.value) return;
+  const dx = (e.clientX - d.startClientX) / d.mapWidth;
+  if (d.mode === 'pan') {
+    panOffset.value = Math.max(0, Math.min(d.startOffset + dx, 1 - d.startFrac));
+  } else if (d.mode === 'resize-left') {
+    // Right edge stays fixed; drag changes left edge → newFrac = endFrac - newStart
+    const endFrac = d.startOffset + d.startFrac;
+    const newStart = Math.max(0, Math.min(d.startOffset + dx, endFrac - 0.01));
+    const newFrac = endFrac - newStart;
+    zoomLevel.value = Math.min(1 / newFrac, 100);
+    panOffset.value = newStart;
+  } else if (d.mode === 'resize-right') {
+    // Left edge stays fixed; drag changes right edge → newFrac = newEnd - startOffset
+    const newEnd = Math.max(d.startOffset + 0.01, Math.min(d.startOffset + d.startFrac + dx, 1));
+    const newFrac = newEnd - d.startOffset;
+    zoomLevel.value = Math.min(1 / newFrac, 100);
+    // panOffset unchanged
+  }
+}
+
+// ── Raster region-select (Shift+drag → zoom into region) ─────────────────
+// `regionSelect` is set while a Shift+drag is in flight; the template overlays
+// a translucent rectangle keyed off these CSS-px coordinates.
+const regionSelect = ref(null); // { startX, currentX } in raster-wrapper px
+
+function _finishRegionSelect() {
+  const r = regionSelect.value;
+  regionSelect.value = null;
+  if (!r || !data.value || !rasterRef.value) return;
+  const rect = rasterRef.value.getBoundingClientRect();
+  const W = rect.width;
+  if (W <= 0) return;
+  const a = Math.max(0, Math.min(r.startX, W));
+  const b = Math.max(0, Math.min(r.currentX, W));
+  const left = Math.min(a, b), right = Math.max(a, b);
+  if (right - left < 4) return; // accidental click, ignore
+  const visibleFraction = 1 / zoomLevel.value;
+  const startFrac = panOffset.value + (left  / W) * visibleFraction;
+  const endFrac   = panOffset.value + (right / W) * visibleFraction;
+  const newFrac = Math.max(endFrac - startFrac, 0.01);  // cap at 100×
+  zoomLevel.value = Math.min(1 / newFrac, 100);
+  panOffset.value = Math.max(0, Math.min(startFrac, 1 - 1 / zoomLevel.value));
 }
 
 // ── Global event listeners ─────────────────────────────────────────────────
@@ -1513,12 +1739,24 @@ function onGlobalMouseMove(e) {
     const newOffset = panStartRef.value.offset - dx * visibleFraction;
     panOffset.value = Math.max(0, Math.min(newOffset, 1 - visibleFraction));
   }
+  if (_minimapDrag) _onMinimapDragMove(e);
+  if (regionSelect.value && rasterRef.value) {
+    // Continue tracking even when the cursor leaves the canvas — the rectangle
+    // clamps to the visible width on commit (_finishRegionSelect).
+    const rect = rasterRef.value.getBoundingClientRect();
+    regionSelect.value = { startX: regionSelect.value.startX, currentX: e.clientX - rect.left };
+  }
 }
 
 function onGlobalMouseUp() {
   const wasDraggingTimeline = isDraggingTimeline.value;
   isPanningRef.value = false;
   isDraggingTimeline.value = false;
+  if (_minimapDrag) {
+    _minimapDrag = null;
+    minimapCursor.value = 'pointer';
+  }
+  if (regionSelect.value) _finishRegionSelect();
   // Drag finished — now actually seek the video to where the user landed.
   // One decode-and-render instead of dozens during the drag.
   if (wasDraggingTimeline) syncVideoTime();
@@ -1539,13 +1777,8 @@ function onKeyDown(e) {
       e.preventDefault();
       seekToFrame(Math.min(data.value.total_frames - 1, currentFrame.value + (e.shiftKey ? 10 : 1)));
       break;
-    case "+":
-    case "=":
-      zoomLevel.value = Math.min(zoomLevel.value * 1.3, 100); break;
-    case "-":
-      zoomLevel.value = Math.max(zoomLevel.value / 1.3, 1); break;
     case "0":
-      zoomLevel.value = 1; panOffset.value = 0; break;
+      resetZoom(); break;
   }
 }
 
@@ -1584,6 +1817,10 @@ onUnmounted(() => {
   if (_rasterResizeObserver) {
     _rasterResizeObserver.disconnect();
     _rasterResizeObserver = null;
+  }
+  if (_minimapResizeObserver) {
+    _minimapResizeObserver.disconnect();
+    _minimapResizeObserver = null;
   }
 });
 </script>
@@ -1726,6 +1963,38 @@ onUnmounted(() => {
   position: absolute; top: 4px; right: 4px; padding: 5px 12px;
   background: rgba(0,0,0,0.85); border-radius: 4px; font-size: 13px;
   color: var(--text-dim); pointer-events: none; border: 1px solid var(--border-strong);
+}
+
+/* Shift+drag region select rectangle on the raster. Spans the raster's full
+   height; only the horizontal range matters for zooming. */
+.region-select {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(78, 205, 196, 0.18);
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Minimap viewport rectangle + playhead are CSS-positioned overlays over
+   the static minimap canvas. Updating their position/size never triggers a
+   canvas repaint — only a compositor-level update — so pan/zoom/scrub is
+   buttery smooth even at 100k+ frames. */
+.minimap-viewport {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border-left:  1.5px solid #fff;
+  border-right: 1.5px solid #fff;
+  box-sizing: border-box;
+  pointer-events: none;
+  will-change: left, width;
+}
+.minimap-playhead {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  width: 1px;
+  background: var(--warn);
+  pointer-events: none;
+  will-change: transform;
 }
 .kbd-bar {
   padding: 7px 16px; border-top: 1px solid var(--border); background: var(--bg-1);

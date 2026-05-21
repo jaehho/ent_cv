@@ -310,14 +310,15 @@ def detections(request, case):
             if fr not in frame_groups:
                 frame_groups[fr] = []
             b = d.get("box")
-            frame_groups[fr].append(
-                {
-                    "class_id": class_index_remap.get(d.get("class"), d.get("class")),
-                    "class_name": d.get("name", ""),
-                    "confidence": d.get("confidence"),
-                    "bbox": [b["x1"], b["y1"], b["x2"], b["y2"]] if b else None,
-                }
-            )
+            det_entry = {
+                "class_id": class_index_remap.get(d.get("class"), d.get("class")),
+                "class_name": d.get("name", ""),
+                "confidence": d.get("confidence"),
+                "bbox": [b["x1"], b["y1"], b["x2"], b["y2"]] if b else None,
+            }
+            if "in_use" in d:
+                det_entry["in_use"] = d["in_use"]
+            frame_groups[fr].append(det_entry)
 
         results = [
             {

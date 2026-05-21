@@ -3,10 +3,12 @@
 //
 // On case load this composable fetches BOTH raw detections (required) and
 // filtered detections (optional — exists only when postprocess was run via
-// CLI). Raw is ALWAYS the primary view — it's the model's actual output and
-// what the user is most interested in seeing. Filtered, when present, is
-// layered on as an annotation indicating which raw detections survived
-// postprocessing (drawn as a thin teal inset stroke by the overlay canvas).
+// CLI). The active view (which the overlay paints and stats derive from) is
+// chosen by the caller-supplied viewMode ref — defaulting to 'filtered' so
+// the post-processed detections (carrying in_use flags etc.) are what the
+// user sees first. Flipping to 'raw' shows the model's unfiltered output for
+// debugging; this happens without re-fetching since both payloads are kept
+// in memory.
 //
 // Callers (currently just YOLOVisualizer.vue) handle any UI-state resets
 // that should accompany a case load (enabled classes, current frame, zoom,
@@ -35,15 +37,21 @@ function buildFrameSetChunked(results, chunkSize = 15000) {
   });
 }
 
-export function useCaseData() {
-  // `data` is the primary view: raw detections, always. The UI's bars, stats,
-  // jump frames, class percentages, and labeled bounding boxes all read from
-  // here, because the page is about visualizing the model's behavior.
+/**
+ * @param {import("vue").Ref<"raw"|"filtered">} [viewMode] - which detection
+ *   set the overlay/stats track. Defaults to a local ref initialized to
+ *   "filtered" if the caller doesn't supply one.
+ */
+export function useCaseData(viewMode = ref("filtered")) {
+  // Raw payload (Object.frozen). Holds the universal context everyone reads:
+  // classes list, total_frames, fps, parts, has_prediction_frames, _filter.
+  // The results array inside is the raw side of the detections.
   const data            = shallowRef(null);
 
-  // Filtered results, populated only when filtered_detections.json exists on
-  // disk. Drawn as a small teal inset stroke on each filtered bbox to mark
-  // "kept by filter". `null` when no filter file exists (nothing to annotate).
+  // Filtered detections array (just the results, not the full payload).
+  // Populated only when filtered_detections.json exists on disk; null
+  // otherwise. When viewMode === "filtered" and this is non-null, the
+  // overlay and per-frame stats source from here instead of data.results.
   const filteredOverlayResults = shallowRef(null);
 
   const dataReady       = ref(false);
@@ -60,10 +68,15 @@ export function useCaseData() {
   // raw boxes with on the overlay canvas).
   const hasFilteredOverlay = computed(() => filteredOverlayResults.value !== null);
 
-  // Sparse lookup: frame number → result entry, on the primary (raw) view.
+  // Sparse lookup: frame number → result entry. Follows viewMode — filtered
+  // when the toggle is set and a filtered payload was loaded; otherwise raw.
+  // Stays raw if filtered isn't available so the viewer still works on
+  // cases without a postprocess run.
   const frameMap = computed(() => {
     if (!data.value) return new Map();
-    return new Map(data.value.results.map(r => [r.frame, r]));
+    const useFiltered = viewMode.value === "filtered" && filteredOverlayResults.value;
+    const results = useFiltered ? filteredOverlayResults.value : data.value.results;
+    return new Map(results.map(r => [r.frame, r]));
   });
 
   // Per-part start timestamp (global ts of the first frame in each part file).
@@ -100,22 +113,31 @@ export function useCaseData() {
     dataReady.value = false;
     videoReady.value = false;
 
-    const [rawRes, filtRes] = await Promise.all([
-      fetch(`/api/cases/${caseName}/detections/`),
-      fetch(`/api/cases/${caseName}/detections/?mode=filtered`),
-    ]);
-    if (!rawRes.ok) throw new Error(`HTTP ${rawRes.status}`);
-    const rawPayload = await rawRes.json();
-    const filtPayload = filtRes.ok ? await filtRes.json() : null;
+    // Issue all three requests concurrently. Summary may 404 when no filter
+    // was run; .catch maps that to null so it never throws.
+    const t0 = performance.now();
+    const rawFetch  = fetch(`/api/cases/${caseName}/detections/`);
+    const filtFetch = fetch(`/api/cases/${caseName}/detections/?mode=filtered`);
+    const sumFetch  = fetch(`/api/cases/${caseName}/filtered-summary/`).catch(() => null);
 
-    // Filter summary in parallel (only meaningful when filtered exists).
-    let summaryPayload = null;
-    if (filtPayload) {
-      try {
-        const sumRes = await fetch(`/api/cases/${caseName}/filtered-summary/`);
-        if (sumRes.ok) summaryPayload = await sumRes.json();
-      } catch { /* summary is optional, ignore */ }
-    }
+    const [rawRes, filtRes] = await Promise.all([rawFetch, filtFetch]);
+    const tHeaders = performance.now();
+    if (!rawRes.ok) throw new Error(`HTTP ${rawRes.status}`);
+
+    // Parse all three bodies in parallel. Each .json() still parses on the main
+    // thread, but starting them together lets the browser interleave network
+    // reads while parses are queued, instead of waiting body-then-parse twice.
+    const [rawPayload, filtPayload, summaryPayload] = await Promise.all([
+      rawRes.json(),
+      filtRes.ok ? filtRes.json() : Promise.resolve(null),
+      sumFetch.then(r => (r && r.ok ? r.json() : null)).catch(() => null),
+    ]);
+    const tParsed = performance.now();
+    // Surface case-switch breakdown so we can see whether network or parse
+    // dominates next time the user reports slowness.
+    console.info(
+      `[case ${caseName}] headers ${(tHeaders - t0).toFixed(0)}ms · parse ${(tParsed - tHeaders).toFixed(0)}ms · total ${(tParsed - t0).toFixed(0)}ms`
+    );
 
     // Clear video src BEFORE swapping data so the URL watcher fires with a
     // clean slate. Setting data first triggers the watcher early; then

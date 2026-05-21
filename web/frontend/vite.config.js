@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
-const DJANGO_PORT = parseInt(process.env.DJANGO_PORT || "8787", 10);
+const DJANGO_PORT = parseInt(process.env.DJANGO_PORT || "8000", 10);
 
 export default defineConfig({
   plugins: [vue()],

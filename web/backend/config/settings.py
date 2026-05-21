@@ -36,6 +36,11 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MIDDLEWARE = [
+    # JSON-only gzip. The detection JSON for a 1h surgery is 50-100MB; gzip
+    # compresses it ~5-10×, cutting case-switch wire time accordingly. The
+    # vanilla GZipMiddleware also compresses video streams, which breaks
+    # range requests and stalls playback into buffering — see api.middleware.
+    "api.middleware.JsonGZipMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

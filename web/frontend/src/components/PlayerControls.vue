@@ -32,6 +32,26 @@
       >{{ r }}x</button>
     </div>
 
+    <!-- View mode: raw vs filtered detections. Filtered button is disabled
+         when no filtered_detections.json was loaded for this case. -->
+    <div class="view-block">
+      <div class="view-label">View</div>
+      <div class="view-toggle">
+        <button
+          class="mode-btn view-btn"
+          :class="{ 'mode-btn--active': viewMode === 'raw' }"
+          @click="emit('update:viewMode', 'raw')"
+        >Raw</button>
+        <button
+          class="mode-btn view-btn"
+          :class="{ 'mode-btn--active': viewMode === 'filtered' }"
+          :disabled="!filteredAvailable"
+          :title="filteredAvailable ? 'Show filtered detections (with in-use flags)' : 'No filtered_detections.json on disk — run postprocess for this case'"
+          @click="emit('update:viewMode', 'filtered')"
+        >Filtered</button>
+      </div>
+    </div>
+
     <!-- Jump filter -->
     <div class="jump-block">
       <div class="jump-label">
@@ -122,6 +142,8 @@ const props = defineProps({
   jumpFrameCount:         { type: Number,  default: null },
   changedFramesAvailable: { type: Boolean, default: false },
   displayedClasses:       { type: Array,   required: true },
+  viewMode:               { type: String,  default: "filtered" },
+  filteredAvailable:      { type: Boolean, default: false },
 });
 const emit = defineEmits([
   "toggle-play",
@@ -131,6 +153,7 @@ const emit = defineEmits([
   "seek-frame",
   "update:jumpFilter",
   "toggle-jump-class",
+  "update:viewMode",
 ]);
 
 const timeInputError = ref(null);
@@ -214,6 +237,26 @@ function pillStyle(idx) {
   white-space: nowrap; text-align: center;
 }
 .btn-rate--active { background: var(--accent-bg); border-color: var(--accent-border); }
+
+/* View toggle (raw vs filtered detections) */
+.view-block { margin-top: 12px; }
+.view-label {
+  font-size: 11px; color: var(--text-faint);
+  letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;
+}
+.view-toggle {
+  display: flex; gap: 3px;
+  border: 1px solid var(--border-strong); border-radius: 4px;
+  overflow: hidden;
+}
+.view-btn {
+  flex: 1; padding: 6px 0; font-size: 11px;
+  border: none; background: transparent;
+  border-radius: 0;
+}
+.view-btn:disabled {
+  color: var(--text-faint); opacity: 0.5; cursor: not-allowed;
+}
 
 /* Jump filter */
 .jump-block { margin-top: 12px; }
