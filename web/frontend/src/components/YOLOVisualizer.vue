@@ -109,7 +109,7 @@
             <div v-else style="text-align:center;padding:20px;color:var(--text-faint)">No prediction frame</div>
           </div>
           <!-- Raw mode: video element + canvas overlay drawing raw bboxes on top.
-               (Raw-vs-filtered comparison overlay parked 2026-05-20 — see DESIGN_LOG.md.) -->
+               (Raw-vs-filtered comparison overlay parked 2026-05-20 — see DEVLOG.md.) -->
           <div v-else-if="videoSrc" class="video-wrapper">
             <video
               ref="videoRef"
