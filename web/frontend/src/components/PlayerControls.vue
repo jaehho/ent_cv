@@ -40,13 +40,14 @@
         <button
           class="mode-btn view-btn"
           :class="{ 'mode-btn--active': viewMode === 'raw' }"
+          :title="filteredAvailable ? 'Show model output (hold R to flip temporarily)' : 'Show model output'"
           @click="emit('update:viewMode', 'raw')"
         >Raw</button>
         <button
           class="mode-btn view-btn"
           :class="{ 'mode-btn--active': viewMode === 'filtered' }"
           :disabled="!filteredAvailable"
-          :title="filteredAvailable ? 'Show filtered detections (with in-use flags)' : 'No filtered_detections.json on disk — run postprocess for this case'"
+          :title="filteredAvailable ? 'Show filtered detections with in-use flags (hold R to flip temporarily)' : 'No filtered_detections.json on disk — run postprocess for this case'"
           @click="emit('update:viewMode', 'filtered')"
         >Filtered</button>
       </div>

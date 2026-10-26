@@ -426,6 +426,7 @@ const CLASS_COLORS_RGB = CLASS_COLORS.map(hex => ({
 // and post-processed boxes appear; 'raw' shows the model's unfiltered
 // output for debugging. The composable swaps the underlying results array
 // based on this ref — no re-fetch, both payloads are kept in memory.
+// Holding R shows the other mode until release (see beginViewFlip below).
 const detectionViewMode = ref("filtered");  // 'raw' | 'filtered'
 const {
   data, filteredOverlayResults, dataReady, videoSrc, videoReady, activeCaseName,
@@ -1762,8 +1763,38 @@ function onGlobalMouseUp() {
   if (wasDraggingTimeline) syncVideoTime();
 }
 
+// ── Hold-to-flip: hold R to show the other detection view ─────────────────
+// While R is held, detectionViewMode shows the opposite of its resting value
+// (raw ↔ filtered) so the two can be compared in place; release restores the
+// resting mode. Window blur ends the hold too, so a missed keyup cannot leave
+// the view stuck flipped. The PlayerControls toggle stays the persistent
+// setter; beginViewFlip never overwrites the resting value mid-hold.
+const viewModeBeforeHold = ref(null);  // resting mode during a hold, else null
+
+function beginViewFlip() {
+  if (viewModeBeforeHold.value !== null) return;
+  viewModeBeforeHold.value = detectionViewMode.value;
+  detectionViewMode.value =
+    viewModeBeforeHold.value === "raw" ? "filtered" : "raw";
+}
+
+function endViewFlip() {
+  if (viewModeBeforeHold.value === null) return;
+  detectionViewMode.value = viewModeBeforeHold.value;
+  viewModeBeforeHold.value = null;
+}
+
+function isTypingTarget(e) {
+  return !!e.target?.closest?.("input, textarea, select, [contenteditable]");
+}
+
 function onKeyDown(e) {
   if (!data.value) return;
+  if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // Never start a hold while typing in a field; keyup still ends one.
+    if (!isTypingTarget(e)) beginViewFlip();
+    return;
+  }
   switch (e.key) {
     case " ":
       e.preventDefault();
@@ -1782,10 +1813,20 @@ function onKeyDown(e) {
   }
 }
 
+function onKeyUp(e) {
+  if (e.key.toLowerCase() === "r") endViewFlip();
+}
+
+function onWindowBlur() {
+  endViewFlip();
+}
+
 onMounted(() => {
   window.addEventListener("mousemove", onGlobalMouseMove);
   window.addEventListener("mouseup", onGlobalMouseUp);
   window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", onWindowBlur);
 
   // Load custom order from localStorage
   const saved = localStorage.getItem('yolo-visualizer-custom-order');
@@ -1805,6 +1846,8 @@ onUnmounted(() => {
   window.removeEventListener("mousemove", onGlobalMouseMove);
   window.removeEventListener("mouseup", onGlobalMouseUp);
   window.removeEventListener("keydown", onKeyDown);
+  window.removeEventListener("keyup", onKeyUp);
+  window.removeEventListener("blur", onWindowBlur);
   if (_rafId) cancelAnimationFrame(_rafId);
   // Cancel pending video frame callback if active
   if (videoRef.value && typeof videoRef.value.cancelVideoFrameCallback === 'function') {
